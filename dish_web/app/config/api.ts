@@ -8,6 +8,8 @@ export const API_CONFIG = {
   ENDPOINTS: {
     ALL_DISHES: '/all_dishes',
     DISH_BY_ID: '/dish',
+    ADD_DISH_FROM_LINK: '/add_dish_from_link',
+    SAVE_EDIT: '/save_edit',
   }
 } as const;
 

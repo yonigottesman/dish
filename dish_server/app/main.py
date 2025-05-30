@@ -1,8 +1,10 @@
 import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from google.cloud import firestore
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
@@ -10,11 +12,25 @@ from app.dependencies import NotAuthenticatedException
 from app.dish import router as dish_router
 from app.login import router as login_router
 
-# Configure logging
+# Configure logging once at the module level
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Create the Firestore client once. super slow init otherwise
+    logger = logging.getLogger()
+    app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdb")
+    logger.info("Firestore client initialized")
+
+    yield
+
+    # Shutdown: Close the client
+    app.state.db.close()
+    logger.info("Firestore client closed")
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.include_router(login_router)
 app.include_router(dish_router)
@@ -30,14 +46,14 @@ app.add_middleware(
 )
 
 
-# Add middleware to log all requests
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    logger.info(f"Request: {request.method} {request.url}")
-    logger.info(f"Headers: {dict(request.headers)}")
-    response = await call_next(request)
-    logger.info(f"Response status: {response.status_code}")
-    return response
+# # Add middleware to log all requests
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     # logger.info(f"Request: {request.method} {request.url}")
+#     # logger.info(f"Headers: {dict(request.headers)}")
+#     response = await call_next(request)
+#     # logger.info(f"Response status: {response.status_code}")
+#     return response
 
 
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)

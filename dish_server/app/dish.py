@@ -5,40 +5,36 @@ from typing import Dict
 
 import aiohttp
 from bs4 import BeautifulSoup
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from google import genai
 from pydantic import BaseModel, Field
 
-from app.dependencies import CurrentUser
-from app.login import router as login_router
+from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
+from app.dependencies import CurrentUser, SessionDep
 from app.models import RecipeModel
 
 router = APIRouter(
     tags=["dish"],
 )
 
-# Recipe data structure
-fake_db: Dict[str, RecipeModel] = {}
-
 
 @router.get("/all_dishes")
-async def get_all_dishes(current_user: CurrentUser):
-    # This endpoint doesn't require authentication, so we make the current_user optional
-    return [recipe.model_dump() for recipe in fake_db.values()]
+async def get_all_dishes(current_user: CurrentUser, db: SessionDep):
+    recipes = await get_recipes(db, current_user)
+    return [recipe.model_dump() for recipe in recipes]
 
 
 @router.get("/dish/{dish_id}")
-async def get_dish_by_id(dish_id: str, current_user: CurrentUser):
+async def get_dish_by_id(dish_id: str, current_user: CurrentUser, db: SessionDep):
     """Get a specific dish by ID"""
-    # This endpoint doesn't require authentication, so we make the current_user optional
-    recipe = fake_db.get(dish_id)
+    recipe = await get_recipe(db, current_user, dish_id)
     if recipe:
         return recipe.model_dump()
-    return None
+    raise HTTPException(status_code=404, detail="Recipe not found")
 
 
 @router.post("/add_dish_from_link")
-async def add_dish_from_link(link: str, current_user: CurrentUser):
+async def add_dish_from_link(link: str, current_user: CurrentUser, db: SessionDep):
     async with aiohttp.ClientSession() as session:
         async with session.get(link) as response:
             print("Status:", response.status)
@@ -89,17 +85,13 @@ async def add_dish_from_link(link: str, current_user: CurrentUser):
         link=link,
         emoji=parsed_recipe.emoji,
     )
-    fake_db[new_recipe.dish_id] = new_recipe
+    await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()
 
 
 @router.put("/save_edit/{dish_id}")
-async def save_edit_dish(dish_id: str, updated_recipe: RecipeModel, current_user: CurrentUser):
+async def save_edit_dish(dish_id: str, updated_recipe: RecipeModel, current_user: CurrentUser, db: SessionDep):
     """Save edited recipe, overriding the old recipe with all new fields"""
-    if dish_id not in fake_db:
-        return None
-
-    # Keep the original dish_id but update all other fields
-    updated_recipe.dish_id = dish_id
-    fake_db[dish_id] = updated_recipe
+    assert updated_recipe.dish_id == dish_id, "Dish ID mismatch"
+    await update_recipe(db, current_user, updated_recipe)
     return updated_recipe.model_dump()

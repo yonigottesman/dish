@@ -9,25 +9,23 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
 from app.config import settings
-from app.crud import authenticate_user
-from app.dependencies import CurrentUser, SessionDep
-from app.models import GoogleTokenRequest, UserCreate
+from app.crud import authenticate_user, get_user, insert_user
+from app.dependencies import CurrentUser, LoggerDep, SessionDep
+from app.models import GoogleTokenRequest, UserCreate, UserInDB
 from app.security import create_access_token, get_password_hash
 
 router = APIRouter(
     tags=["login"],
 )
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 @router.post("/token")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: SessionDep,
+    logger: LoggerDep,
 ):
-    user = authenticate_user(db, form_data.username, form_data.password)
+    user = await authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -63,20 +61,23 @@ async def login_for_access_token(
 
 
 @router.post("/signup")
-async def signup(user_data: UserCreate, db: SessionDep):
+async def signup(user_data: UserCreate, db: SessionDep, logger: LoggerDep):
     # Check if username already exists
-    if user_data.username in db:
+    if await get_user(db, user_data.username):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
     # Create new user entry with hashed password
     hashed_password = get_password_hash(user_data.password)
 
-    db[user_data.username] = {
-        "username": user_data.username,
-        "email": user_data.email,
-        "full_name": user_data.full_name,
-        "hashed_password": hashed_password,
-    }
+    user = UserInDB(
+        username=user_data.username,
+        email=user_data.email,
+        full_name=user_data.full_name,
+        hashed_password=hashed_password,
+    )
+    result = await insert_user(db, user)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
 
     # Create access token for the new user
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -108,7 +109,7 @@ async def signup(user_data: UserCreate, db: SessionDep):
 
 
 @router.post("/auth/google")
-async def google_auth(token_request: GoogleTokenRequest, db: SessionDep):
+async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger: LoggerDep):
     """Verify Google ID token and authenticate user"""
     try:
         # Verify the Google ID token
@@ -133,20 +134,16 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep):
         # Use email as username for Google users
         username = email
 
-        if username not in db:
-            # Create new user
-            db[username] = {
-                "username": username,
-                "full_name": name,
-                "email": email,
-                "hashed_password": None,  # Google users don't have passwords
-                "google_user_id": google_user_id,
-            }
+        if not await get_user(db, username):
+            user = UserInDB(
+                username=username,
+                email=email,
+                full_name=name,
+                hashed_password=None,
+            )
+            await insert_user(db, user)
             logger.info(f"Created new Google user: {username}")
         else:
-            # Update existing user's Google ID if not set
-            if "google_user_id" not in db[username]:
-                db[username]["google_user_id"] = google_user_id
             logger.info(f"Existing Google user logged in: {username}")
 
         # Create access token
@@ -200,7 +197,7 @@ async def index(current_user: CurrentUser):
 
 
 @router.get("/logout")
-async def logout():
+async def logout(logger: LoggerDep):
     response = {"status": "success", "message": "Successfully logged out"}
     # Delete all possible cookie names for thorough logout
     json_response = JSONResponse(content=response)

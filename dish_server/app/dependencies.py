@@ -5,33 +5,22 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
+from google.cloud.firestore import AsyncClient
 from jwt.exceptions import InvalidTokenError
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.config import settings
-from app.crud import get_user
+from app.crud import get_firestore_db, get_user
 from app.models import TokenData, User
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+def get_logger() -> logging.Logger:
+    """Dependency to provide a logger instance"""
+    return logging.getLogger("dish_server")
 
 
-fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
-    }
-}
-
-
-def get_db() -> Generator[dict, None, None]:
-    yield fake_users_db
-
-
-SessionDep = Annotated[dict, Depends(get_db)]
+LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
+SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
 
 
 class NotAuthenticatedException(Exception):
@@ -51,9 +40,13 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
         super().__init__(tokenUrl=tokenUrl, scheme_name=scheme_name, scopes=scopes, auto_error=auto_error)
 
     async def __call__(self, request: Request) -> Optional[str]:
+        # Get logger for this method - this is acceptable as it's a framework method
+        # and can't easily receive dependency injection
+        logger = logging.getLogger(__name__)
+
         # Log the request headers and cookies for debugging
-        logger.info(f"Auth Headers: {dict(request.headers)}")
-        logger.info(f"Auth Cookies: {dict(request.cookies)}")
+        # logger.info(f"Auth Headers: {dict(request.headers)}")
+        # logger.info(f"Auth Cookies: {dict(request.cookies)}")
 
         # First check Authorization header (preferred for frontend-based auth)
         header_authorization = request.headers.get("Authorization")
@@ -69,7 +62,7 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
         for cookie_name in cookie_names:
             cookie_authorization = request.cookies.get(cookie_name)
             if cookie_authorization:
-                logger.info(f"Found authorization in cookie '{cookie_name}': {cookie_authorization[:10]}...")
+                # logger.info(f"Found authorization in cookie '{cookie_name}': {cookie_authorization[:10]}...")
 
                 # The cookie value itself might be in the format "Bearer <token>"
                 # or it might just be the token directly
@@ -77,16 +70,16 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
                     # Handle the case where the cookie includes quotes and Bearer
                     # This happens when the cookie is set with the literal value "Bearer <token>"
                     token = cookie_authorization[8:-1]  # Remove '"Bearer ' prefix and '"' suffix
-                    logger.info(f"Found quoted bearer token in cookie: {token[:10]}...")
+                    # logger.info(f"Found quoted bearer token in cookie: {token[:10]}...")
                     return token
 
                 scheme, param = get_authorization_scheme_param(cookie_authorization)
                 if scheme.lower() == "bearer":
-                    logger.info(f"Found bearer scheme in cookie: {param[:10]}...")
+                    # logger.info(f"Found bearer scheme in cookie: {param[:10]}...")
                     return param
 
                 # If there's no scheme, treat the whole cookie as the token
-                logger.info(f"Using cookie value as token: {cookie_authorization[:10]}...")
+                # logger.info(f"Using cookie value as token: {cookie_authorization[:10]}...")
                 return cookie_authorization
 
         # If no valid authorization found
@@ -104,7 +97,7 @@ oauth2_scheme = OAuth2PasswordBearerWithCookieOrHeader(tokenUrl="token", auto_er
 TokenDep = Annotated[str, Depends(oauth2_scheme)]
 
 
-async def get_current_user(token: TokenDep, db: SessionDep):
+async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
     if not token:
         logger.warning("get_current_user called with no token")
         raise NotAuthenticatedException
@@ -112,7 +105,7 @@ async def get_current_user(token: TokenDep, db: SessionDep):
     logger.info(f"Attempting to decode token: {token[:10]}...")
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        logger.info(f"Token decoded successfully. Payload: {payload}")
+        # logger.info(f"Token decoded successfully. Payload: {payload}")
 
         username: str = payload.get("sub")
         if username is None:
@@ -125,7 +118,7 @@ async def get_current_user(token: TokenDep, db: SessionDep):
         logger.error(f"Invalid token error: {str(e)}")
         raise NotAuthenticatedException from e
 
-    user = get_user(db, username=token_data.username)
+    user = await get_user(db, username=token_data.username)
     if user is None:
         logger.warning(f"User not found: {token_data.username}")
         raise NotAuthenticatedException

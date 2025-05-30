@@ -16,5 +16,7 @@ class Settings(BaseSettings):
     # Google OAuth config
     GOOGLE_CLIENT_ID: str = "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com"
 
+    GOOGLE_CLOUD_PROJECT: str = "personal-ai-264306"
+
 
 settings = Settings()  # type: ignore

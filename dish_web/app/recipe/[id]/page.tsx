@@ -4,10 +4,13 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { ApiService, Recipe } from '../../services/api';
+import { useAuth } from '../../context/auth-context';
+import ProtectedRoute from '../../components/protected-route';
 
 export default function RecipePage() {
   const params = useParams();
   const recipeId = params.id as string;
+  const { user } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [editedRecipe, setEditedRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -248,18 +251,19 @@ export default function RecipePage() {
   const displayRecipe = isEditing ? editedRecipe! : recipe;
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#ffffff',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-    }}>
+    <ProtectedRoute>
+      <div style={{
+        minHeight: '100vh',
+        background: '#ffffff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      }}>
       {/* Navigation Bar */}
       <nav style={{
         background: '#f7f6f3',
         borderBottom: '1px solid #e9e9e7',
         padding: '12px 20px'
       }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Link
             href="/"
             style={{
@@ -276,6 +280,29 @@ export default function RecipePage() {
           >
             Home
           </Link>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {user?.username && (
+                <span style={{ fontSize: '14px', color: '#666' }}>
+                  Hello, {user.full_name || user.username}
+                </span>
+              )}
+              <button
+                onClick={() => ApiService.logout()}
+                style={{
+                  padding: '8px 16px',
+                  background: 'transparent',
+                  color: '#666',
+                  border: '1px solid #e9e9e7',
+                  borderRadius: '3px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -786,5 +813,6 @@ export default function RecipePage() {
         }
       `}</style>
     </div>
+    </ProtectedRoute>
   );
 } 

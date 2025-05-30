@@ -1,15 +1,26 @@
 import logging
+import os
 import re
 import textwrap
 import uuid
-from typing import Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Dict, List, Optional
 
 import aiohttp
+import jwt
+from authlib.integrations.starlette_client import OAuth, OAuthError
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security.utils import get_authorization_scheme_param
 from google import genai
+from jwt.exceptions import InvalidTokenError
+from passlib.context import CryptContext
 from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
+from starlette.status import HTTP_401_UNAUTHORIZED
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -32,7 +43,7 @@ class RecipeModel(BaseModel):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,  # Changed to True to support cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -49,175 +60,422 @@ async def log_requests(request: Request, call_next):
 
 
 # Recipe data structure
-fake_db: Dict[str, RecipeModel] = {
-    # "1": RecipeModel(
-    #     dish_id="1",
-    #     title="Classic Spaghetti Carbonara",
-    #     description="Creamy Italian pasta dish with eggs, cheese, and pancetta",
-    #     ingredients=[
-    #         "400g spaghetti",
-    #         "200g pancetta or guanciale, diced",
-    #         "4 large eggs",
-    #         "100g Pecorino Romano cheese, grated",
-    #         "50g Parmesan cheese, grated",
-    #         "Black pepper, freshly ground",
-    #         "Salt",
-    #     ],
-    #     instructions=[
-    #         "Bring a large pot of salted water to boil and cook spaghetti according to package directions.",
-    #         "While pasta cooks, heat a large skillet over medium heat and cook pancetta until crispy.",
-    #         "In a bowl, whisk together eggs, Pecorino Romano, Parmesan, and plenty of black pepper.",
-    #         "Reserve 1 cup pasta water, then drain pasta.",
-    #         "Add hot pasta to the skillet with pancetta and toss.",
-    #         (
-    #             "Remove from heat and quickly stir in egg mixture, adding pasta water "
-    #             "as needed to create a creamy sauce."
-    #         ),
-    #         "Serve immediately with extra cheese and black pepper.",
-    #     ],
-    # ),
-    # "2": RecipeModel(
-    #     dish_id="2",
-    #     title="Chicken Tikka Masala",
-    #     description="Tender chicken in a rich, creamy tomato-based curry sauce",
-    #     ingredients=[
-    #         "2 lbs chicken breast, cut into chunks",
-    #         "1 cup plain yogurt",
-    #         "2 tbsp lemon juice",
-    #         "2 tsp garam masala",
-    #         "1 tsp cumin",
-    #         "1 can (14 oz) crushed tomatoes",
-    #         "1 cup heavy cream",
-    #         "3 cloves garlic, minced",
-    #         "1 inch ginger, grated",
-    #         "1 onion, diced",
-    #         "Salt and pepper to taste",
-    #     ],
-    #     instructions=[
-    #         "Marinate chicken in yogurt, lemon juice, and half the spices for at least 30 minutes.",
-    #         "Heat oil in a large pan and cook marinated chicken until golden. Set aside.",
-    #         "In the same pan, sauté onion until soft, then add garlic and ginger.",
-    #         "Add remaining spices and cook for 1 minute until fragrant.",
-    #         "Add crushed tomatoes and simmer for 10 minutes.",
-    #         "Stir in cream and return chicken to the pan.",
-    #         "Simmer for 15 minutes until chicken is cooked through and sauce is thick.",
-    #         "Serve with basmati rice and naan bread.",
-    #     ],
-    # ),
-    # "3": RecipeModel(
-    #     dish_id="3",
-    #     title="Classic Caesar Salad",
-    #     description="Crisp romaine lettuce with homemade Caesar dressing and croutons",
-    #     ingredients=[
-    #         "2 heads romaine lettuce, chopped",
-    #         "1/2 cup Parmesan cheese, grated",
-    #         "1 cup croutons",
-    #         "3 cloves garlic, minced",
-    #         "2 anchovy fillets",
-    #         "1 egg yolk",
-    #         "2 tbsp lemon juice",
-    #         "1 tsp Dijon mustard",
-    #         "1/3 cup olive oil",
-    #         "Salt and pepper to taste",
-    #     ],
-    #     instructions=[
-    #         "Wash and dry romaine lettuce thoroughly, then chop into bite-sized pieces.",
-    #         "For dressing, mash garlic and anchovies into a paste.",
-    #         "Whisk in egg yolk, lemon juice, and Dijon mustard.",
-    #         "Slowly drizzle in olive oil while whisking to emulsify.",
-    #         "Season with salt and pepper.",
-    #         "Toss lettuce with dressing until well coated.",
-    #         "Top with Parmesan cheese and croutons.",
-    #         "Serve immediately.",
-    #     ],
-    # ),
-    # "4": RecipeModel(
-    #     dish_id="4",
-    #     title="Chocolate Chip Cookies",
-    #     description="Soft and chewy homemade chocolate chip cookies",
-    #     ingredients=[
-    #         "2 1/4 cups all-purpose flour",
-    #         "1 tsp baking soda",
-    #         "1 tsp salt",
-    #         "1 cup butter, softened",
-    #         "3/4 cup granulated sugar",
-    #         "3/4 cup brown sugar",
-    #         "2 large eggs",
-    #         "2 tsp vanilla extract",
-    #         "2 cups chocolate chips",
-    #     ],
-    #     instructions=[
-    #         "Preheat oven to 375°F (190°C).",
-    #         "In a bowl, whisk together flour, baking soda, and salt.",
-    #         "In a large bowl, cream together butter and both sugars until fluffy.",
-    #         "Beat in eggs one at a time, then vanilla.",
-    #         "Gradually mix in flour mixture until just combined.",
-    #         "Stir in chocolate chips.",
-    #         "Drop rounded tablespoons of dough onto ungreased baking sheets.",
-    #         "Bake for 9-11 minutes until golden brown.",
-    #         "Cool on baking sheet for 5 minutes before transferring to wire rack.",
-    #     ],
-    # ),
-    # "5": RecipeModel(
-    #     dish_id="5",
-    #     title="Beef Tacos",
-    #     description="Seasoned ground beef tacos with fresh toppings",
-    #     ingredients=[
-    #         "1 lb ground beef",
-    #         "1 packet taco seasoning",
-    #         "8 taco shells",
-    #         "1 cup lettuce, shredded",
-    #         "1 cup cheddar cheese, shredded",
-    #         "2 tomatoes, diced",
-    #         "1/2 cup sour cream",
-    #         "1/4 cup onion, diced",
-    #         "Salsa",
-    #         "Lime wedges",
-    #     ],
-    #     instructions=[
-    #         "Brown ground beef in a large skillet over medium-high heat.",
-    #         "Drain excess fat and add taco seasoning with water as directed on packet.",
-    #         "Simmer for 5 minutes until sauce thickens.",
-    #         "Warm taco shells according to package directions.",
-    #         "Fill each shell with seasoned beef.",
-    #         "Top with lettuce, cheese, tomatoes, onion, and sour cream.",
-    #         "Serve with salsa and lime wedges.",
-    #         "Enjoy immediately while shells are crispy.",
-    #     ],
-    # ),
-    # "6": RecipeModel(
-    #     dish_id="6",
-    #     title="Banana Bread",
-    #     description="Moist and flavorful banana bread perfect for breakfast or snack",
-    #     ingredients=[
-    #         "3 ripe bananas, mashed",
-    #         "1/3 cup melted butter",
-    #         "3/4 cup sugar",
-    #         "1 egg, beaten",
-    #         "1 tsp vanilla extract",
-    #         "1 tsp baking soda",
-    #         "Pinch of salt",
-    #         "1 1/2 cups all-purpose flour",
-    #         "Optional: 1/2 cup chopped walnuts",
-    #     ],
-    #     instructions=[
-    #         "Preheat oven to 350°F (175°C) and grease a 9x5 inch loaf pan.",
-    #         "In a large bowl, mix melted butter with mashed bananas.",
-    #         "Stir in sugar, beaten egg, and vanilla extract.",
-    #         "Sprinkle baking soda and salt over mixture and stir.",
-    #         "Add flour and mix until just combined (don't overmix).",
-    #         "Fold in walnuts if using.",
-    #         "Pour batter into prepared loaf pan.",
-    #         "Bake for 55-65 minutes until a toothpick comes out clean.",
-    #         "Cool in pan for 10 minutes before removing to wire rack.",
-    #     ],
-    # ),
+fake_db: Dict[str, RecipeModel] = {}
+
+
+# to get a string like this run:
+# openssl rand -hex 32
+SECRET_KEY = "718d52839994c9e0e1351831dc252f25a51d6e690940601393878f37a585b65d"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+# Google OAuth config
+GOOGLE_CLIENT_ID = os.environ.get(
+    "client-id", "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com"
+)
+GOOGLE_CLIENT_SECRET = os.environ.get("client-secret", "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")
+
+oauth = OAuth()
+oauth.register(
+    name="google",
+    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+    client_id=GOOGLE_CLIENT_ID,
+    client_secret=GOOGLE_CLIENT_SECRET,
+    client_kwargs={
+        "scope": "email openid profile",
+    },
+)
+fake_users_db = {
+    "johndoe": {
+        "username": "johndoe",
+        "full_name": "John Doe",
+        "email": "johndoe@example.com",
+        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
+    }
 }
 
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: str | None = None
+
+
+class User(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+
+
+class UserInDB(User):
+    hashed_password: str | None = None
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    email: str | None = None
+    full_name: str | None = None
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
+    def __init__(
+        self,
+        tokenUrl: str,
+        scheme_name: Optional[str] = None,
+        scopes: Optional[dict[str, str]] = None,
+        auto_error: bool = True,
+        cookie_name: str = "access-token",
+    ):
+        self.cookie_name = cookie_name
+        super().__init__(tokenUrl=tokenUrl, scheme_name=scheme_name, scopes=scopes, auto_error=auto_error)
+
+    async def __call__(self, request: Request) -> Optional[str]:
+        # Log the request headers and cookies for debugging
+        logger.info(f"Auth Headers: {dict(request.headers)}")
+        logger.info(f"Auth Cookies: {dict(request.cookies)}")
+
+        # First check Authorization header (preferred for frontend-based auth)
+        header_authorization = request.headers.get("Authorization")
+        if header_authorization:
+            scheme, param = get_authorization_scheme_param(header_authorization)
+            if scheme.lower() == "bearer":
+                logger.info(f"Found bearer token in header: {param[:10]}...")
+                return param
+
+        # Try all possible cookie names for backward compatibility
+        cookie_names = [self.cookie_name, "access_token_cookie", "access_token"]
+
+        for cookie_name in cookie_names:
+            cookie_authorization = request.cookies.get(cookie_name)
+            if cookie_authorization:
+                logger.info(f"Found authorization in cookie '{cookie_name}': {cookie_authorization[:10]}...")
+
+                # The cookie value itself might be in the format "Bearer <token>"
+                # or it might just be the token directly
+                if cookie_authorization.startswith('"Bearer '):
+                    # Handle the case where the cookie includes quotes and Bearer
+                    # This happens when the cookie is set with the literal value "Bearer <token>"
+                    token = cookie_authorization[8:-1]  # Remove '"Bearer ' prefix and '"' suffix
+                    logger.info(f"Found quoted bearer token in cookie: {token[:10]}...")
+                    return token
+
+                scheme, param = get_authorization_scheme_param(cookie_authorization)
+                if scheme.lower() == "bearer":
+                    logger.info(f"Found bearer scheme in cookie: {param[:10]}...")
+                    return param
+
+                # If there's no scheme, treat the whole cookie as the token
+                logger.info(f"Using cookie value as token: {cookie_authorization[:10]}...")
+                return cookie_authorization
+
+        # If no valid authorization found
+        logger.warning("No authorization token found")
+        if self.auto_error:
+            raise HTTPException(
+                status_code=HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return None
+
+
+oauth2_scheme = OAuth2PasswordBearerWithCookieOrHeader(tokenUrl="token", auto_error=False)
+
+
+# Templates removed as we're no longer handling frontend rendering
+
+
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+
+def get_user(db, username: str):
+    if username in db:
+        user_dict = db[username]
+        return UserInDB(**user_dict)
+
+
+def authenticate_user(fake_db, username: str, password: str):
+    user = get_user(fake_db, username)
+    if not user:
+        return False
+    if not verify_password(password, user.hashed_password):
+        return False
+    return user
+
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+
+class NotAuthenticatedException(Exception):
+    pass
+
+
+def exc_handler(request, exc):
+    # Return error response instead of redirect
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"status": "error", "detail": "Authentication required"}
+    )
+
+
+app.add_exception_handler(NotAuthenticatedException, exc_handler)
+
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    if not token:
+        logger.warning("get_current_user called with no token")
+        raise NotAuthenticatedException
+
+    logger.info(f"Attempting to decode token: {token[:10]}...")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        logger.info(f"Token decoded successfully. Payload: {payload}")
+
+        username: str = payload.get("sub")
+        if username is None:
+            logger.warning("Token payload missing 'sub' field")
+            raise NotAuthenticatedException
+
+        token_data = TokenData(username=username)
+        logger.info(f"Token contains username: {username}")
+    except InvalidTokenError as e:
+        logger.error(f"Invalid token error: {str(e)}")
+        raise NotAuthenticatedException from e
+
+    user = get_user(fake_users_db, username=token_data.username)
+    if user is None:
+        logger.warning(f"User not found: {token_data.username}")
+        raise NotAuthenticatedException
+
+    logger.info(f"User authenticated successfully: {user.username}")
+    return user
+
+
+async def get_current_active_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    return current_user
+
+
+@app.post("/token")
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+):
+    user = authenticate_user(fake_users_db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+    # Create a response with both token and user info
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "full_name": user.full_name
+        }
+    }
+
+    # Set the token in a cookie for browser clients
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content=response_data)
+
+    # Set the cookie consistent with how the frontend expects it
+    cookie_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access-token",
+        value=f"Bearer {access_token}",
+        max_age=cookie_max_age,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax"
+    )
+
+    logger.info(f"User {user.username} logged in successfully")
+    return response
+
+
+@app.post("/signup")
+async def signup(user_data: UserCreate):
+    # Check if username already exists
+    if user_data.username in fake_users_db:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+    # Create new user entry with hashed password
+    hashed_password = get_password_hash(user_data.password)
+
+    fake_users_db[user_data.username] = {
+        "username": user_data.username,
+        "email": user_data.email,
+        "full_name": user_data.full_name,
+        "hashed_password": hashed_password,
+    }
+
+    # Create access token for the new user
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(data={"sub": user_data.username}, expires_delta=access_token_expires)
+
+    # Create a response object with token and user info
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {"username": user_data.username, "email": user_data.email, "full_name": user_data.full_name},
+    }
+
+    # Set the token in a cookie for browser clients
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content=response_data)
+
+    # Set the cookie consistent with how the frontend expects it
+    cookie_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access-token",
+        value=f"Bearer {access_token}",
+        max_age=cookie_max_age,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax"
+    )
+
+    logger.info(f"User {user_data.username} signed up successfully")
+    return response
+
+
+@app.get("/login", include_in_schema=False)
+async def login_status():
+    """Return login status info"""
+    return {"status": "unauthenticated", "message": "Authentication required"}
+
+
 @app.get("/")
-def read_root():
-    return {"Hello": "World"}
+async def index(current_user: Annotated[User, Depends(get_current_user)]):
+    # Return user information as JSON instead of templating
+    return {
+        "status": "authenticated",
+        "user": {
+            "username": current_user.username,
+            "email": current_user.email,
+            "full_name": current_user.full_name
+        }
+    }
+
+
+@app.get("/logout")
+async def logout():
+    response = {
+        "status": "success",
+        "message": "Successfully logged out"
+    }
+    # Delete all possible cookie names for thorough logout
+    from fastapi.responses import JSONResponse
+    json_response = JSONResponse(content=response)
+
+    # Delete all possible cookie variations for complete logout
+    cookie_names = ["access-token", "access_token", "access_token_cookie"]
+    for cookie_name in cookie_names:
+        json_response.delete_cookie(key=cookie_name)
+
+    logger.info("User logged out, all auth cookies deleted")
+    return json_response
+
+
+@app.get("/login/google")
+async def google_login(request: Request):
+    # We still need this endpoint to initiate the OAuth flow
+    # The only change is we won't redirect to the frontend ourselves
+    # after authentication - that's now handled by the frontend
+    url = request.url_for("auth")
+    return await oauth.google.authorize_redirect(request, url)
+
+
+@app.get("/auth")
+async def auth(request: Request):
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user = token.get("userinfo")
+        if not user:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+
+        # Create or update user in your database
+        email = user.get("email")
+        name = user.get("name")
+
+        # For this example, we'll create a simple user entry
+        if email not in fake_users_db:
+            fake_users_db[email] = {
+                "username": email,
+                "full_name": name,
+                "email": email,
+                "disabled": False,
+            }
+
+        # Create access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(data={"sub": email}, expires_delta=access_token_expires)
+
+        # Create a response object with token and user info
+        response_data = {
+            "status": "success",
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "username": email,
+                "full_name": name,
+                "email": email
+            }
+        }
+
+        # Set the token in a cookie for browser clients
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+
+        # Set the cookie consistent with how the frontend expects it
+        cookie_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        response.set_cookie(
+            key="access-token",
+            value=f"Bearer {access_token}",
+            max_age=cookie_max_age,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax"
+        )
+
+        logger.info(f"Google OAuth authentication successful for user {email}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Google OAuth authentication failed: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
 
 
 @app.get("/all_dishes")

@@ -11,8 +11,26 @@ export interface Recipe {
   emoji?: string;
 }
 
+// User interface
+export interface User {
+  username: string;
+  email?: string;
+  full_name?: string;
+}
+
 // API service class
 export class ApiService {
+  /**
+   * Default fetch options to include credentials for all requests
+   */
+  private static defaultOptions: RequestInit = {
+    mode: 'cors',
+    credentials: 'include', // Include cookies in all requests
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
   /**
    * Fetch all recipes from the backend
    */
@@ -20,19 +38,21 @@ export class ApiService {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.ALL_DISHES);
       console.log(`Fetching all recipes from: ${url}`); // Debug log
-      
+
       const response = await fetch(url, {
         method: 'GET',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...this.defaultOptions,
       });
-      
+
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const recipes: Recipe[] = await response.json();
       console.log(`Successfully fetched ${recipes.length} recipes`); // Debug log
       return recipes;
@@ -50,22 +70,24 @@ export class ApiService {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.DISH_BY_ID, id);
       console.log(`Fetching recipe from: ${url}`); // Debug log
-      
+
       const response = await fetch(url, {
         method: 'GET',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...this.defaultOptions,
       });
-      
+
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
         if (response.status === 404) {
           return null; // Recipe not found
         }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const recipe: Recipe = await response.json();
       console.log(`Successfully fetched recipe:`, recipe); // Debug log
       return recipe;
@@ -83,19 +105,21 @@ export class ApiService {
     try {
       const url = `${buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DISH_FROM_LINK)}?link=${encodeURIComponent(link)}`;
       console.log(`Adding dish from link: ${url}`); // Debug log
-      
+
       const response = await fetch(url, {
         method: 'POST',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...this.defaultOptions,
       });
-      
+
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const recipe: Recipe = await response.json();
       console.log(`Successfully added recipe from link:`, recipe); // Debug log
       return recipe;
@@ -113,20 +137,22 @@ export class ApiService {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.SAVE_EDIT, dishId);
       console.log(`Saving edited recipe to: ${url}`); // Debug log
-      
+
       const response = await fetch(url, {
         method: 'PUT',
-        mode: 'cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        ...this.defaultOptions,
         body: JSON.stringify(recipe),
       });
-      
+
       if (!response.ok) {
+        if (response.status === 401) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const savedRecipe: Recipe = await response.json();
       console.log(`Successfully saved edited recipe:`, savedRecipe); // Debug log
       return savedRecipe;
@@ -134,6 +160,58 @@ export class ApiService {
       console.error(`Error saving edited recipe with ID ${dishId}:`, error);
       console.error(`URL attempted: ${buildApiUrl(API_CONFIG.ENDPOINTS.SAVE_EDIT, dishId)}`);
       throw error;
+    }
+  }
+
+  /**
+   * Get current user info
+   */
+  static async getCurrentUser(): Promise<User | null> {
+    try {
+      const url = buildApiUrl('/');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        ...this.defaultOptions,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          return null; // Not authenticated
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return {
+        username: data.username,
+        email: data.email,
+        full_name: data.full_name,
+      };
+    } catch (error) {
+      console.error('Error getting current user:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Logout user
+   */
+  static async logout(): Promise<boolean> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.LOGOUT);
+
+      await fetch(url, {
+        method: 'GET',
+        ...this.defaultOptions,
+      });
+
+      // Redirect to login page
+      window.location.href = '/login';
+      return true;
+    } catch (error) {
+      console.error('Error logging out:', error);
+      return false;
     }
   }
 } 

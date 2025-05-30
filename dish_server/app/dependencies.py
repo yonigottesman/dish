@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
 from google import genai
+from google.cloud import documentai_v1
 from google.cloud.firestore import AsyncClient
 from jwt.exceptions import InvalidTokenError
 from starlette.status import HTTP_401_UNAUTHORIZED
@@ -32,10 +33,13 @@ def get_genai_client(request: Request) -> Generator[genai.Client, None, None]:
     yield request.app.state.genai_client
 
 
+def get_documentai_processor(request: Request) -> Generator[documentai_v1.DocumentProcessorServiceClient, None, None]:
+    yield request.app.state.documentai_processor
+
+
+DocumentaiProcessorDep = Annotated[documentai_v1.DocumentProcessorServiceClient, Depends(get_documentai_processor)]
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
-
-
 GenaiClientDep = Annotated[genai.Client, Depends(get_genai_client)]
 
 

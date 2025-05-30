@@ -18,5 +18,8 @@ class Settings(BaseSettings):
 
     GOOGLE_CLOUD_PROJECT: str = "personal-ai-264306"
 
+    DOCUMENT_AI_PROCESSOR_ID: str = "ef4832a8654dc6ca"
+    DOCUMENT_AI_LOCATION: str = "eu"
+
 
 settings = Settings()  # type: ignore

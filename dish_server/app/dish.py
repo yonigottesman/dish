@@ -4,11 +4,11 @@ import uuid
 
 import aiohttp
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
-from app.dependencies import CurrentUser, GenaiClientDep, SessionDep
+from app.dependencies import CurrentUser, DocumentaiProcessorDep, GenaiClientDep, SessionDep
 from app.models import RecipeModel
 
 router = APIRouter(
@@ -124,6 +124,16 @@ async def add_dish_from_text(
     )
     await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()
+
+
+@router.post("/add_dish_from_image")
+async def add_dish_from_image(
+    current_user: CurrentUser,
+    db: SessionDep,
+    documentai_processor: DocumentaiProcessorDep,
+    image: bytes,
+):
+    pass
 
 
 @router.put("/save_edit/{dish_id}")

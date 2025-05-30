@@ -1,0 +1,214 @@
+import logging
+from datetime import timedelta
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordRequestForm
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
+
+from app.config import settings
+from app.crud import authenticate_user
+from app.dependencies import CurrentUser, SessionDep
+from app.models import GoogleTokenRequest, UserCreate
+from app.security import create_access_token, get_password_hash
+
+router = APIRouter(
+    tags=["login"],
+)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@router.post("/token")
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: SessionDep,
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+
+    # Create a response with both token and user info
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {"username": user.username, "email": user.email, "full_name": user.full_name},
+    }
+
+    # Set the token in a cookie for browser clients
+    response = JSONResponse(content=response_data)
+
+    # Set the cookie consistent with how the frontend expects it
+    cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access-token",
+        value=f"Bearer {access_token}",
+        max_age=cookie_max_age,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",
+    )
+
+    logger.info(f"User {user.username} logged in successfully")
+    return response
+
+
+@router.post("/signup")
+async def signup(user_data: UserCreate, db: SessionDep):
+    # Check if username already exists
+    if user_data.username in db:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
+
+    # Create new user entry with hashed password
+    hashed_password = get_password_hash(user_data.password)
+
+    db[user_data.username] = {
+        "username": user_data.username,
+        "email": user_data.email,
+        "full_name": user_data.full_name,
+        "hashed_password": hashed_password,
+    }
+
+    # Create access token for the new user
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(data={"sub": user_data.username}, expires_delta=access_token_expires)
+
+    # Create a response object with token and user info
+    response_data = {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {"username": user_data.username, "email": user_data.email, "full_name": user_data.full_name},
+    }
+
+    # Set the token in a cookie for browser clients
+    response = JSONResponse(content=response_data)
+
+    # Set the cookie consistent with how the frontend expects it
+    cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    response.set_cookie(
+        key="access-token",
+        value=f"Bearer {access_token}",
+        max_age=cookie_max_age,
+        httponly=True,
+        secure=False,  # Set to True in production with HTTPS
+        samesite="lax",
+    )
+
+    logger.info(f"User {user_data.username} signed up successfully")
+    return response
+
+
+@router.post("/auth/google")
+async def google_auth(token_request: GoogleTokenRequest, db: SessionDep):
+    """Verify Google ID token and authenticate user"""
+    try:
+        # Verify the Google ID token
+        idinfo = id_token.verify_oauth2_token(
+            token_request.credential, google_requests.Request(), settings.GOOGLE_CLIENT_ID
+        )
+
+        # Verify the issuer
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise ValueError("Wrong issuer.")
+
+        # Get user info from the token
+        google_user_id = idinfo["sub"]
+        email = idinfo.get("email")
+        name = idinfo.get("name")
+        email_verified = idinfo.get("email_verified", False)
+
+        if not email_verified:
+            raise HTTPException(status_code=400, detail="Email not verified by Google")
+
+        # Create or get user from database
+        # Use email as username for Google users
+        username = email
+
+        if username not in db:
+            # Create new user
+            db[username] = {
+                "username": username,
+                "full_name": name,
+                "email": email,
+                "hashed_password": None,  # Google users don't have passwords
+                "google_user_id": google_user_id,
+            }
+            logger.info(f"Created new Google user: {username}")
+        else:
+            # Update existing user's Google ID if not set
+            if "google_user_id" not in db[username]:
+                db[username]["google_user_id"] = google_user_id
+            logger.info(f"Existing Google user logged in: {username}")
+
+        # Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(data={"sub": username}, expires_delta=access_token_expires)
+
+        # Create response
+        response_data = {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {"username": username, "email": email, "full_name": name},
+        }
+
+        response = JSONResponse(content=response_data)
+
+        # Set the cookie
+        cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        response.set_cookie(
+            key="access-token",
+            value=f"Bearer {access_token}",
+            max_age=cookie_max_age,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax",
+        )
+
+        logger.info(f"Google authentication successful for user {username}")
+        return response
+
+    except ValueError as e:
+        logger.error(f"Google token verification failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+    except Exception as e:
+        logger.error(f"Google authentication error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication failed")
+
+
+@router.get("/login", include_in_schema=False)
+async def login_status():
+    """Return login status info"""
+    return {"status": "unauthenticated", "message": "Authentication required"}
+
+
+@router.get("/")
+async def index(current_user: CurrentUser):
+    # Return user information as JSON instead of templating
+    return {
+        "status": "authenticated",
+        "user": {"username": current_user.username, "email": current_user.email, "full_name": current_user.full_name},
+    }
+
+
+@router.get("/logout")
+async def logout():
+    response = {"status": "success", "message": "Successfully logged out"}
+    # Delete all possible cookie names for thorough logout
+    json_response = JSONResponse(content=response)
+
+    # Delete all possible cookie variations for complete logout
+    cookie_names = ["access-token", "access_token", "access_token_cookie"]
+    for cookie_name in cookie_names:
+        json_response.delete_cookie(key=cookie_name)
+
+    logger.info("User logged out, all auth cookies deleted")
+    return json_response

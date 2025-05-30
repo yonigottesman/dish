@@ -12,5 +12,6 @@ dependencies = [
     "google-genai>=1.17.0",
     "ipykernel>=6.29.5",
     "passlib[bcrypt]>=1.7.4",
+    "pydantic-settings>=2.9.1",
     "ruff>=0.11.11",
 ]

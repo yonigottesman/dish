@@ -14,17 +14,19 @@ from app.dependencies import NotAuthenticatedException
 from app.dish import router as dish_router
 from app.login import router as login_router
 
+logging.basicConfig(level=logging.INFO)
 
-def build_documentai_processor():
+
+async def build_documentai_processor():
     project_id = settings.GOOGLE_CLOUD_PROJECT
     opts = ClientOptions(api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com")
-    client = documentai_v1.DocumentProcessorServiceClient(client_options=opts)
+    client = documentai_v1.DocumentProcessorServiceAsyncClient(client_options=opts)
     full_processor_name = client.processor_path(
         project_id, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
     )
     request = documentai_v1.GetProcessorRequest(name=full_processor_name)
-    processor = client.get_processor(request=request)
-    return processor
+    processor = await client.get_processor(request=request)
+    return processor, client
 
 
 @asynccontextmanager
@@ -32,7 +34,7 @@ async def lifespan(app: FastAPI):
     # Startup: Create the Firestore client once. super slow init otherwise
     app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
     app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
-    app.state.documentai_processor = build_documentai_processor()
+    app.state.documentai_processor, app.state.documentai_client = await build_documentai_processor()
     yield
 
     # Shutdown: Close the clients

@@ -171,6 +171,47 @@ export class ApiService {
   }
 
   /**
+   * Add a new dish from an uploaded image
+   */
+  static async addDishFromImage(imageFile: File): Promise<Recipe> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DISH_FROM_IMAGE);
+      console.log(`Adding dish from image: ${url}`); // Debug log
+
+      // Create FormData to send the image file
+      const formData = new FormData();
+      formData.append('image', imageFile);
+
+      // Use different options for file upload (no Content-Type header)
+      const response = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const recipe: Recipe = await response.json();
+      console.log(`Successfully added recipe from image:`, recipe); // Debug log
+      return recipe;
+    } catch (error) {
+      console.error(`Error adding dish from image:`, error);
+      console.error(`URL attempted: ${buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DISH_FROM_IMAGE)}`);
+      throw error;
+    }
+  }
+
+  /**
    * Save edited recipe
    */
   static async saveEditedRecipe(dishId: string, recipe: Recipe): Promise<Recipe> {

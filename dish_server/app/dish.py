@@ -1,3 +1,4 @@
+import io
 import re
 import textwrap
 import uuid
@@ -5,15 +6,27 @@ import uuid
 import aiohttp
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from google.cloud import documentai_v1
+from google.genai import types
+from PIL import Image, ImageDraw
+from pillow_heif import register_heif_opener
 from pydantic import BaseModel, Field
 
 from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
-from app.dependencies import CurrentUser, DocumentaiProcessorDep, GenaiClientDep, SessionDep
+from app.dependencies import (
+    CurrentUser,
+    DocumentaiClientDep,
+    DocumentaiProcessorDep,
+    GenaiClientDep,
+    LoggerDep,
+    SessionDep,
+)
 from app.models import RecipeModel
 
 router = APIRouter(
     tags=["dish"],
 )
+register_heif_opener()
 
 
 @router.get("/all_dishes")
@@ -131,9 +144,88 @@ async def add_dish_from_image(
     current_user: CurrentUser,
     db: SessionDep,
     documentai_processor: DocumentaiProcessorDep,
-    image: bytes,
+    documentai_client: DocumentaiClientDep,
+    logger: LoggerDep,
+    genai_client: GenaiClientDep,
+    image: UploadFile = File(...),
 ):
-    pass
+    image_bytes = await image.read()
+    pil_image = Image.open(io.BytesIO(image_bytes))
+    jpeg_image = pil_image.convert("RGB")
+    jpeg_bytes = io.BytesIO()
+    jpeg_image.save(jpeg_bytes, format="JPEG")
+    jpeg_bytes = jpeg_bytes.getvalue()
+
+    logger.info("uploaded image")
+    raw_document = documentai_v1.RawDocument(
+        content=jpeg_bytes,
+        mime_type="image/jpeg",
+    )
+
+    # Send a request and get the processed document.
+    request = documentai_v1.ProcessRequest(name=documentai_processor.name, raw_document=raw_document)
+    result: documentai_v1.ProcessResponse = await documentai_client.process_document(request=request)
+    document = result.document
+    logger.info("ocr on document")
+
+    draw = ImageDraw.Draw(jpeg_image)
+    for block in document.pages[0].blocks:
+        layout = block.layout
+        vertices = layout.bounding_poly.vertices
+        polygon_points = [(vertex.x, vertex.y) for vertex in vertices]
+        draw.polygon(polygon_points, outline="red", width=3)
+
+    max_width = 1024
+    max_height = 1024
+    width, height = jpeg_image.size
+
+    if width > max_width or height > max_height:
+        scale_factor = min(max_width / width, max_height / height)
+        new_width = int(width * scale_factor)
+        new_height = int(height * scale_factor)
+        image_resized = jpeg_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        logger.info(f"Image resized from {width}x{height} to {new_width}x{new_height}")
+    else:
+        image_resized = jpeg_image
+        logger.info(f"Image size {width}x{height} is within limits, no resizing needed")
+
+    output_buffer = io.BytesIO()
+    image_resized.save(output_buffer, format="JPEG")
+    image_bytes = output_buffer.getvalue()
+
+    genai_response = await genai_client.aio.models.generate_content(
+        model="gemini-2.5-flash-preview-05-20",
+        contents=[
+            (
+                "Given the following text and image, extract the exact text of the "
+                "ingredients and instructions for the recipe. Use the same language as in the text."
+                "Write the ingredients and instructions in the same order and exact values as they are in the text and image."
+                "<text>" + document.text + "</text>"
+            ),
+            types.Part.from_bytes(
+                data=image_bytes,
+                mime_type="image/jpeg",
+            ),
+        ],
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": RecipeForLLM,
+        },
+    )
+
+    parsed_recipe = genai_response.parsed
+    assert isinstance(parsed_recipe, RecipeForLLM), "Response parsing failed"
+    new_recipe = RecipeModel(
+        dish_id=str(uuid.uuid4())[:8],
+        title=parsed_recipe.title,
+        description=parsed_recipe.description,
+        ingredients=parsed_recipe.ingredients,
+        instructions=parsed_recipe.instructions,
+        link=None,
+        emoji=parsed_recipe.emoji,
+    )
+    await insert_recipe(db, current_user, new_recipe)
+    return new_recipe.model_dump()
 
 
 @router.put("/save_edit/{dish_id}")

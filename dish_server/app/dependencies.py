@@ -33,11 +33,16 @@ def get_genai_client(request: Request) -> Generator[genai.Client, None, None]:
     yield request.app.state.genai_client
 
 
-def get_documentai_processor(request: Request) -> Generator[documentai_v1.DocumentProcessorServiceClient, None, None]:
+def get_documentai_client(request: Request) -> Generator[documentai_v1.DocumentProcessorServiceAsyncClient, None, None]:
+    yield request.app.state.documentai_client
+
+
+def get_documentai_processor(request: Request) -> Generator[documentai_v1.Processor, None, None]:
     yield request.app.state.documentai_processor
 
 
-DocumentaiProcessorDep = Annotated[documentai_v1.DocumentProcessorServiceClient, Depends(get_documentai_processor)]
+DocumentaiProcessorDep = Annotated[documentai_v1.Processor, Depends(get_documentai_processor)]
+DocumentaiClientDep = Annotated[documentai_v1.DocumentProcessorServiceAsyncClient, Depends(get_documentai_client)]
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
 GenaiClientDep = Annotated[genai.Client, Depends(get_genai_client)]

@@ -18,6 +18,8 @@ export default function Home() {
   const [linkInput, setLinkInput] = useState('');
   const [textInput, setTextInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const router = useRouter();
 
   // Reusable Spinner Component
@@ -122,10 +124,38 @@ export default function Home() {
     }
   };
 
+  const handleAddFromImage = async () => {
+    if (!selectedImage) return;
+    
+    try {
+      setIsSubmitting(true);
+      const newRecipe = await ApiService.addDishFromImage(selectedImage);
+      closeModal();
+      router.push(`/recipe/${newRecipe.dish_id}`);
+    } catch (err) {
+      console.error('Failed to add recipe from image:', err);
+      alert('Failed to add recipe from image. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
+    }
+  };
+
   const closeModal = () => {
     setShowModal(false);
     setLinkInput('');
     setTextInput('');
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const Modal = () => {
@@ -334,12 +364,153 @@ export default function Home() {
               <div style={{ 
                 display: 'flex', 
                 flexDirection: 'column', 
-                height: '100%',
-                justifyContent: 'center',
-                alignItems: 'center'
+                height: '100%'
               }}>
-                <div style={{ textAlign: 'center', color: '#666', padding: '40px 20px' }}>
-                  Image upload coming soon...
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#37352f',
+                }}>
+                  Recipe Image
+                </label>
+                
+                {/* File Upload Area */}
+                <div style={{
+                  border: '2px dashed #e9e9e7',
+                  borderRadius: '8px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                  cursor: 'pointer',
+                  backgroundColor: selectedImage ? '#f7f6f3' : 'transparent',
+                  transition: 'all 0.2s ease',
+                  flex: '1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: '120px',
+                }}
+                onClick={() => document.getElementById('image-upload')?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.borderColor = '#37352f';
+                  e.currentTarget.style.backgroundColor = '#f7f6f3';
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.borderColor = '#e9e9e7';
+                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.style.borderColor = '#e9e9e7';
+                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
+                  
+                  const files = e.dataTransfer.files;
+                  if (files.length > 0) {
+                    const file = files[0];
+                    if (file.type.startsWith('image/')) {
+                      setSelectedImage(file);
+                      const previewUrl = URL.createObjectURL(file);
+                      setImagePreview(previewUrl);
+                    }
+                  }
+                }}
+                >
+                  <input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    style={{ display: 'none' }}
+                    disabled={isSubmitting}
+                  />
+                  
+                  {imagePreview ? (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}>
+                      <img
+                        src={imagePreview}
+                        alt="Recipe preview"
+                        style={{
+                          maxWidth: '200px',
+                          maxHeight: '150px',
+                          borderRadius: '4px',
+                          objectFit: 'cover',
+                        }}
+                      />
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#666',
+                        fontWeight: '500',
+                      }}>
+                        {selectedImage?.name}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#999',
+                      }}>
+                        Click to change image
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}>
+                      <div style={{
+                        fontSize: '24px',
+                        color: '#ccc',
+                      }}>
+                        📸
+                      </div>
+                      <div style={{
+                        fontSize: '14px',
+                        color: '#666',
+                        fontWeight: '500',
+                      }}>
+                        Upload Recipe Image
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: '#999',
+                      }}>
+                        Click or drag image here
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+                  <button
+                    onClick={closeModal}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #e9e9e7',
+                      background: 'white',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <SubmitButton
+                    onClick={handleAddFromImage}
+                    disabled={!selectedImage || isSubmitting}
+                  >
+                    Add Recipe
+                  </SubmitButton>
                 </div>
               </div>
             )}

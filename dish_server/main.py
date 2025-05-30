@@ -8,7 +8,6 @@ from typing import Annotated, Dict, List, Optional
 
 import aiohttp
 import jwt
-from authlib.integrations.starlette_client import OAuth, OAuthError
 from bs4 import BeautifulSoup
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +15,8 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.security.utils import get_authorization_scheme_param
 from google import genai
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
@@ -71,20 +72,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Google OAuth config
 GOOGLE_CLIENT_ID = os.environ.get(
-    "client-id", "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com"
+    "GOOGLE_CLIENT_ID", "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com"
 )
-GOOGLE_CLIENT_SECRET = os.environ.get("client-secret", "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")
 
-oauth = OAuth()
-oauth.register(
-    name="google",
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_id=GOOGLE_CLIENT_ID,
-    client_secret=GOOGLE_CLIENT_SECRET,
-    client_kwargs={
-        "scope": "email openid profile",
-    },
-)
 fake_users_db = {
     "johndoe": {
         "username": "johndoe",
@@ -119,6 +109,10 @@ class UserCreate(BaseModel):
     password: str
     email: str | None = None
     full_name: str | None = None
+
+
+class GoogleTokenRequest(BaseModel):
+    credential: str
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -188,10 +182,6 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
 
 oauth2_scheme = OAuth2PasswordBearerWithCookieOrHeader(tokenUrl="token", auto_error=False)
 
-
-# Templates removed as we're no longer handling frontend rendering
-
-
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 
 
@@ -235,10 +225,8 @@ class NotAuthenticatedException(Exception):
 
 def exc_handler(request, exc):
     # Return error response instead of redirect
-    from fastapi.responses import JSONResponse
     return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        content={"status": "error", "detail": "Authentication required"}
+        status_code=status.HTTP_401_UNAUTHORIZED, content={"status": "error", "detail": "Authentication required"}
     )
 
 
@@ -299,15 +287,10 @@ async def login_for_access_token(
     response_data = {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {
-            "username": user.username,
-            "email": user.email,
-            "full_name": user.full_name
-        }
+        "user": {"username": user.username, "email": user.email, "full_name": user.full_name},
     }
 
     # Set the token in a cookie for browser clients
-    from fastapi.responses import JSONResponse
     response = JSONResponse(content=response_data)
 
     # Set the cookie consistent with how the frontend expects it
@@ -318,7 +301,7 @@ async def login_for_access_token(
         max_age=cookie_max_age,
         httponly=True,
         secure=False,  # Set to True in production with HTTPS
-        samesite="lax"
+        samesite="lax",
     )
 
     logger.info(f"User {user.username} logged in successfully")
@@ -353,7 +336,6 @@ async def signup(user_data: UserCreate):
     }
 
     # Set the token in a cookie for browser clients
-    from fastapi.responses import JSONResponse
     response = JSONResponse(content=response_data)
 
     # Set the cookie consistent with how the frontend expects it
@@ -364,11 +346,86 @@ async def signup(user_data: UserCreate):
         max_age=cookie_max_age,
         httponly=True,
         secure=False,  # Set to True in production with HTTPS
-        samesite="lax"
+        samesite="lax",
     )
 
     logger.info(f"User {user_data.username} signed up successfully")
     return response
+
+
+@app.post("/auth/google")
+async def google_auth(token_request: GoogleTokenRequest):
+    """Verify Google ID token and authenticate user"""
+    try:
+        # Verify the Google ID token
+        idinfo = id_token.verify_oauth2_token(token_request.credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+
+        # Verify the issuer
+        if idinfo["iss"] not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise ValueError("Wrong issuer.")
+
+        # Get user info from the token
+        google_user_id = idinfo["sub"]
+        email = idinfo.get("email")
+        name = idinfo.get("name")
+        email_verified = idinfo.get("email_verified", False)
+
+        if not email_verified:
+            raise HTTPException(status_code=400, detail="Email not verified by Google")
+
+        # Create or get user from database
+        # Use email as username for Google users
+        username = email
+
+        if username not in fake_users_db:
+            # Create new user
+            fake_users_db[username] = {
+                "username": username,
+                "full_name": name,
+                "email": email,
+                "hashed_password": None,  # Google users don't have passwords
+                "google_user_id": google_user_id,
+            }
+            logger.info(f"Created new Google user: {username}")
+        else:
+            # Update existing user's Google ID if not set
+            if "google_user_id" not in fake_users_db[username]:
+                fake_users_db[username]["google_user_id"] = google_user_id
+            logger.info(f"Existing Google user logged in: {username}")
+
+        # Create access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(data={"sub": username}, expires_delta=access_token_expires)
+
+        # Create response
+        response_data = {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {"username": username, "email": email, "full_name": name},
+        }
+
+        response = JSONResponse(content=response_data)
+
+        # Set the cookie
+        cookie_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        response.set_cookie(
+            key="access-token",
+            value=f"Bearer {access_token}",
+            max_age=cookie_max_age,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax",
+        )
+
+        logger.info(f"Google authentication successful for user {username}")
+        return response
+
+    except ValueError as e:
+        logger.error(f"Google token verification failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="Invalid Google token")
+    except Exception as e:
+        logger.error(f"Google authentication error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication failed")
 
 
 @app.get("/login", include_in_schema=False)
@@ -382,22 +439,14 @@ async def index(current_user: Annotated[User, Depends(get_current_user)]):
     # Return user information as JSON instead of templating
     return {
         "status": "authenticated",
-        "user": {
-            "username": current_user.username,
-            "email": current_user.email,
-            "full_name": current_user.full_name
-        }
+        "user": {"username": current_user.username, "email": current_user.email, "full_name": current_user.full_name},
     }
 
 
 @app.get("/logout")
 async def logout():
-    response = {
-        "status": "success",
-        "message": "Successfully logged out"
-    }
+    response = {"status": "success", "message": "Successfully logged out"}
     # Delete all possible cookie names for thorough logout
-    from fastapi.responses import JSONResponse
     json_response = JSONResponse(content=response)
 
     # Delete all possible cookie variations for complete logout
@@ -409,86 +458,14 @@ async def logout():
     return json_response
 
 
-@app.get("/login/google")
-async def google_login(request: Request):
-    # We still need this endpoint to initiate the OAuth flow
-    # The only change is we won't redirect to the frontend ourselves
-    # after authentication - that's now handled by the frontend
-    url = request.url_for("auth")
-    return await oauth.google.authorize_redirect(request, url)
-
-
-@app.get("/auth")
-async def auth(request: Request):
-    try:
-        token = await oauth.google.authorize_access_token(request)
-        user = token.get("userinfo")
-        if not user:
-            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
-
-        # Create or update user in your database
-        email = user.get("email")
-        name = user.get("name")
-
-        # For this example, we'll create a simple user entry
-        if email not in fake_users_db:
-            fake_users_db[email] = {
-                "username": email,
-                "full_name": name,
-                "email": email,
-                "disabled": False,
-            }
-
-        # Create access token
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(data={"sub": email}, expires_delta=access_token_expires)
-
-        # Create a response object with token and user info
-        response_data = {
-            "status": "success",
-            "message": "Authentication successful",
-            "user": {
-                "username": email,
-                "full_name": name,
-                "email": email
-            }
-        }
-
-        # Set the token in a cookie for browser clients
-        from fastapi.responses import JSONResponse
-        response = JSONResponse(content=response_data)
-
-        # Set the cookie consistent with how the frontend expects it
-        cookie_max_age = ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        response.set_cookie(
-            key="access-token",
-            value=f"Bearer {access_token}",
-            max_age=cookie_max_age,
-            httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
-        )
-
-        logger.info(f"Google OAuth authentication successful for user {email}")
-        return response
-
-    except Exception as e:
-        logger.error(f"Google OAuth authentication failed: {str(e)}")
-        # Return JSON error response
-        return JSONResponse(
-            content={"status": "error", "detail": "Authentication failed"},
-            status_code=401
-        )
-
-
 @app.get("/all_dishes")
-async def get_all_dishes(current_user: Annotated[User, Depends(get_current_user)]=None):
+async def get_all_dishes(current_user: Annotated[User, Depends(get_current_user)] = None):
     # This endpoint doesn't require authentication, so we make the current_user optional
     return [recipe.model_dump() for recipe in fake_db.values()]
 
 
 @app.get("/dish/{dish_id}")
-async def get_dish_by_id(dish_id: str, current_user: Annotated[User, Depends(get_current_user)]=None):
+async def get_dish_by_id(dish_id: str, current_user: Annotated[User, Depends(get_current_user)] = None):
     """Get a specific dish by ID"""
     # This endpoint doesn't require authentication, so we make the current_user optional
     recipe = fake_db.get(dish_id)
@@ -554,7 +531,9 @@ async def add_dish_from_link(link: str, current_user: Annotated[User, Depends(ge
 
 
 @app.put("/save_edit/{dish_id}")
-async def save_edit_dish(dish_id: str, updated_recipe: RecipeModel, current_user: Annotated[User, Depends(get_current_user)]):
+async def save_edit_dish(
+    dish_id: str, updated_recipe: RecipeModel, current_user: Annotated[User, Depends(get_current_user)]
+):
     """Save edited recipe, overriding the old recipe with all new fields"""
     if dish_id not in fake_db:
         return None

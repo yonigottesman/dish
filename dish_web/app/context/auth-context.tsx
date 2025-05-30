@@ -35,34 +35,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const verifyAuth = async () => {
       try {
+        // Check if we're already on the login page to avoid redirect loops
+        if (pathname === '/login') {
+          setAuthState({
+            isAuthenticated: false,
+            user: null,
+            isLoading: false,
+            error: null
+          });
+          return;
+        }
+
         const user = await checkAuthStatus();
-        
+
         setAuthState({
           isAuthenticated: !!user,
           user,
           isLoading: false,
           error: null
         });
-        
+
         // If not authenticated and not on login page, redirect to login
         if (!user && pathname !== '/login') {
           router.push('/login');
         }
-        
+
         // If authenticated and on login page, redirect to home
         if (user && pathname === '/login') {
           router.push('/');
         }
       } catch (error) {
+        console.error('Auth verification error:', error);
         setAuthState({
           isAuthenticated: false,
           user: null,
           isLoading: false,
           error: 'Failed to verify authentication'
         });
+
+        // Redirect to login on error if not already there
+        if (pathname !== '/login') {
+          router.push('/login');
+        }
       }
     };
-    
+
     verifyAuth();
   }, [pathname, router]);
   

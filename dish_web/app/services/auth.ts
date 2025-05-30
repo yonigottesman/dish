@@ -33,13 +33,16 @@ export const checkAuthStatus = async (): Promise<User | null> => {
       // If we can successfully access the protected home endpoint, we're authenticated
       // Extract user data from response
       const data = await response.json();
-      return {
-        username: data.username,
-        email: data.email,
-        full_name: data.full_name,
-      };
+      if (data.status === 'authenticated' && data.user) {
+        return {
+          username: data.user.username,
+          email: data.user.email,
+          full_name: data.user.full_name,
+        };
+      }
+      return null;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error checking auth status:', error);

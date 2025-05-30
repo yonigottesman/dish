@@ -45,7 +45,9 @@ export class ApiService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
           // Handle unauthorized - redirect to login
           window.location.href = '/login';
           throw new Error('Authentication required');
@@ -77,7 +79,9 @@ export class ApiService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
           // Handle unauthorized - redirect to login
           window.location.href = '/login';
           throw new Error('Authentication required');
@@ -112,7 +116,9 @@ export class ApiService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
           // Handle unauthorized - redirect to login
           window.location.href = '/login';
           throw new Error('Authentication required');
@@ -145,7 +151,9 @@ export class ApiService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
           // Handle unauthorized - redirect to login
           window.location.href = '/login';
           throw new Error('Authentication required');
@@ -183,11 +191,15 @@ export class ApiService {
       }
 
       const data = await response.json();
-      return {
-        username: data.username,
-        email: data.email,
-        full_name: data.full_name,
-      };
+      // Check if the response has the expected structure
+      if (data.status === 'authenticated' && data.user) {
+        return {
+          username: data.user.username,
+          email: data.user.email,
+          full_name: data.user.full_name,
+        };
+      }
+      return null;
     } catch (error) {
       console.error('Error getting current user:', error);
       return null;

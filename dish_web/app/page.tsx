@@ -8,7 +8,7 @@ import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,20 +21,29 @@ export default function Home() {
   useEffect(() => {
     const fetchRecipes = async () => {
       try {
-        setLoading(true);
-        const fetchedRecipes = await ApiService.getAllRecipes();
-        setRecipes(fetchedRecipes);
-        setError(null);
+        // Only fetch recipes if we've confirmed authentication state
+        if (!authLoading) {
+          setLoading(true);
+          const fetchedRecipes = await ApiService.getAllRecipes();
+          setRecipes(fetchedRecipes);
+          setError(null);
+        }
       } catch (err) {
         console.error('Failed to fetch recipes:', err);
-        setError('Failed to load recipes. Please try again later.');
+        // Check if the error is authentication related
+        if (err instanceof Error && err.message === 'Authentication required') {
+          // Auth error handled by ApiService redirecting to login
+          setError('Authentication required');
+        } else {
+          setError('Failed to load recipes. Please try again later.');
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchRecipes();
-  }, []);
+  }, [authLoading]);
 
   const handleAddFromLink = async () => {
     if (!linkInput.trim()) return;

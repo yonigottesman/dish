@@ -42,7 +42,7 @@ class RecipeModel(BaseModel):
 # Add CORS middleware to allow all requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Using wildcard to allow any frontend
     allow_credentials=True,  # Changed to True to support cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
@@ -446,8 +446,7 @@ async def auth(request: Request):
         # Create a response object with token and user info
         response_data = {
             "status": "success",
-            "access_token": access_token,
-            "token_type": "bearer",
+            "message": "Authentication successful",
             "user": {
                 "username": email,
                 "full_name": name,
@@ -475,17 +474,23 @@ async def auth(request: Request):
 
     except Exception as e:
         logger.error(f"Google OAuth authentication failed: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
+        # Return JSON error response
+        return JSONResponse(
+            content={"status": "error", "detail": "Authentication failed"},
+            status_code=401
+        )
 
 
 @app.get("/all_dishes")
-def get_all_dishes():
+async def get_all_dishes(current_user: Annotated[User, Depends(get_current_user)]=None):
+    # This endpoint doesn't require authentication, so we make the current_user optional
     return [recipe.model_dump() for recipe in fake_db.values()]
 
 
 @app.get("/dish/{dish_id}")
-def get_dish_by_id(dish_id: str):
+async def get_dish_by_id(dish_id: str, current_user: Annotated[User, Depends(get_current_user)]=None):
     """Get a specific dish by ID"""
+    # This endpoint doesn't require authentication, so we make the current_user optional
     recipe = fake_db.get(dish_id)
     if recipe:
         return recipe.model_dump()
@@ -493,7 +498,7 @@ def get_dish_by_id(dish_id: str):
 
 
 @app.post("/add_dish_from_link")
-async def add_dish_from_link(link: str):
+async def add_dish_from_link(link: str, current_user: Annotated[User, Depends(get_current_user)]):
     async with aiohttp.ClientSession() as session:
         async with session.get(link) as response:
             print("Status:", response.status)
@@ -549,7 +554,7 @@ async def add_dish_from_link(link: str):
 
 
 @app.put("/save_edit/{dish_id}")
-def save_edit_dish(dish_id: str, updated_recipe: RecipeModel):
+async def save_edit_dish(dish_id: str, updated_recipe: RecipeModel, current_user: Annotated[User, Depends(get_current_user)]):
     """Save edited recipe, overriding the old recipe with all new fields"""
     if dish_id not in fake_db:
         return None

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { buildApiUrl, API_CONFIG } from '../config/api';
 import { useAuth } from '../context/auth-context';
+import { checkAuthStatus } from '../services/auth';
 
 export default function LoginPage() {
   const { signup } = useAuth();
@@ -16,18 +17,31 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const searchParams = useSearchParams();
 
-  // Handle OAuth redirect with token
+  // Handle OAuth redirect with authentication response
   useEffect(() => {
-    const token = searchParams.get('token');
+    // Check for any auth parameters in the URL
     const error = searchParams.get('error');
     
-    if (token) {
-      // Store token and redirect to home
-      localStorage.setItem('access_token', token);
-      window.location.href = '/';
-    } else if (error) {
+    if (error) {
       setError(error === 'google_auth_failed' ? 'Google authentication failed' : error);
     }
+
+    // We just check for auth status as normal - the backend has set the cookie
+    // The auth context will handle redirecting to home if authenticated
+    const checkAuth = async () => {
+      try {
+        // Check if we're authenticated after being redirected back from Google OAuth
+        const user = await checkAuthStatus();
+        if (user) {
+          // We're authenticated, redirect to home
+          window.location.href = '/';
+        }
+      } catch (error) {
+        console.error('Error checking auth status after OAuth redirect:', error);
+      }
+    };
+    
+    checkAuth();
   }, [searchParams]);
 
   const handleUsernamePasswordLogin = async (e: React.FormEvent) => {
@@ -326,4 +340,4 @@ export default function LoginPage() {
       </div>
     </div>
   );
-} 
+}

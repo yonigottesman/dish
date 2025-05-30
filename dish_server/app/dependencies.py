@@ -5,22 +5,38 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
+from google import genai
 from google.cloud.firestore import AsyncClient
 from jwt.exceptions import InvalidTokenError
 from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.config import settings
-from app.crud import get_firestore_db, get_user
+from app.crud import get_user
 from app.models import TokenData, User
 
 
 def get_logger() -> logging.Logger:
     """Dependency to provide a logger instance"""
-    return logging.getLogger("dish_server")
+    # Configure logging once at the module level
+
+    logger = logging.getLogger("dish_server")
+    logger.setLevel(logging.INFO)
+    return logger
+
+
+def get_firestore_db(request: Request) -> Generator[AsyncClient, None, None]:
+    yield request.app.state.db
+
+
+def get_genai_client(request: Request) -> Generator[genai.Client, None, None]:
+    yield request.app.state.genai_client
 
 
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
+
+
+GenaiClientDep = Annotated[genai.Client, Depends(get_genai_client)]
 
 
 class NotAuthenticatedException(Exception):
@@ -120,7 +136,7 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
 
     user = await get_user(db, username=token_data.username)
     if user is None:
-        logger.warning(f"User not found: {token_data.username}")
+        logger.info(f"User not found: {token_data.username}")
         raise NotAuthenticatedException
 
     logger.info(f"User authenticated successfully: {user.username}")

@@ -1,16 +1,14 @@
 import re
 import textwrap
 import uuid
-from typing import Dict
 
 import aiohttp
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, HTTPException
-from google import genai
 from pydantic import BaseModel, Field
 
 from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
-from app.dependencies import CurrentUser, SessionDep
+from app.dependencies import CurrentUser, GenaiClientDep, SessionDep
 from app.models import RecipeModel
 
 router = APIRouter(
@@ -34,10 +32,14 @@ async def get_dish_by_id(dish_id: str, current_user: CurrentUser, db: SessionDep
 
 
 @router.post("/add_dish_from_link")
-async def add_dish_from_link(link: str, current_user: CurrentUser, db: SessionDep):
+async def add_dish_from_link(
+    link: str,
+    current_user: CurrentUser,
+    db: SessionDep,
+    genai_client: GenaiClientDep,
+):
     async with aiohttp.ClientSession() as session:
         async with session.get(link) as response:
-            print("Status:", response.status)
             html_page = await response.text()
     soup = BeautifulSoup(html_page, "html.parser")
     text = soup.get_text()
@@ -57,8 +59,7 @@ async def add_dish_from_link(link: str, current_user: CurrentUser, db: SessionDe
             ),
         )
 
-    client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
-    genai_response = await client.aio.models.generate_content(
+    genai_response = await genai_client.aio.models.generate_content(
         model="gemini-2.5-flash-preview-05-20",
         contents=(
             "Given the following text from a web page, extract the exact text of the "

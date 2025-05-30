@@ -9,10 +9,6 @@ from app.models import RecipeModel, User, UserInDB
 from app.security import verify_password
 
 
-def get_firestore_db(request: Request) -> Generator[AsyncClient, None, None]:
-    yield request.app.state.db
-
-
 async def get_user(db: AsyncClient, username: str):
     snapshot = await db.collection("users").document(username).get()
     if snapshot.exists:

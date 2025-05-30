@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from google import genai
 from google.cloud import firestore
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -12,22 +13,17 @@ from app.dependencies import NotAuthenticatedException
 from app.dish import router as dish_router
 from app.login import router as login_router
 
-# Configure logging once at the module level
-logging.basicConfig(level=logging.INFO)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Create the Firestore client once. super slow init otherwise
-    logger = logging.getLogger()
-    app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdb")
-    logger.info("Firestore client initialized")
+    app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
+    app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
 
     yield
 
-    # Shutdown: Close the client
-    app.state.db.close()
-    logger.info("Firestore client closed")
+    # Shutdown: Close the clients
+    #    ...
 
 
 app = FastAPI(lifespan=lifespan)

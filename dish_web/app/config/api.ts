@@ -11,6 +11,7 @@ export const API_CONFIG = {
 
   // Google OAuth Client ID
   GOOGLE_CLIENT_ID: '941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com',
+  
 
   // API endpoints
   ENDPOINTS: {

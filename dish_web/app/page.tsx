@@ -6,6 +6,7 @@ import { ApiService, Recipe } from './services/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
+import Navbar from './components/navbar';
 
 export default function Home() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -242,31 +243,7 @@ export default function Home() {
         background: '#ffffff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
-        {/* Navigation Bar */}
-        <nav style={{
-          background: '#f7f6f3',
-          borderBottom: '1px solid #e9e9e7',
-          padding: '12px 20px'
-        }}>
-          <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-            <Link
-              href="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '8px 16px',
-                background: '#37352f',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '3px',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
-            >
-              Home
-            </Link>
-          </div>
-        </nav>
+        <Navbar />
 
         <div style={{ 
           padding: '40px 20px',
@@ -296,31 +273,7 @@ export default function Home() {
         background: '#ffffff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
-        {/* Navigation Bar */}
-        <nav style={{
-          background: '#f7f6f3',
-          borderBottom: '1px solid #e9e9e7',
-          padding: '12px 20px'
-        }}>
-          <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', alignItems: 'center' }}>
-            <Link
-              href="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '8px 16px',
-                background: '#37352f',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '3px',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}
-            >
-              Home
-            </Link>
-          </div>
-        </nav>
+        <Navbar />
 
         <div style={{ 
           padding: '40px 20px',
@@ -364,54 +317,7 @@ export default function Home() {
         background: '#ffffff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
-      {/* Navigation Bar */}
-      <nav style={{
-        background: '#f7f6f3',
-        borderBottom: '1px solid #e9e9e7',
-        padding: '12px 20px'
-      }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link
-            href="/"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '8px 16px',
-              background: '#37352f',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '3px',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-          >
-            Home
-          </Link>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {user?.username && (
-                <span style={{ fontSize: '14px', color: '#666' }}>
-                  Hello, {user.full_name || user.username}
-                </span>
-              )}
-              <button
-                onClick={() => ApiService.logout()}
-                style={{
-                  padding: '8px 16px',
-                  background: 'transparent',
-                  color: '#666',
-                  border: '1px solid #e9e9e7',
-                  borderRadius: '3px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <div style={{ padding: '40px 20px' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>

@@ -241,7 +241,7 @@ export default function Home() {
           {/* Tab Content */}
           <div style={{ 
             padding: '20px',
-            minHeight: '200px',
+            height: '280px',
             display: 'flex',
             flexDirection: 'column'
           }}>
@@ -260,25 +260,28 @@ export default function Home() {
                 }}>
                   Recipe Text
                 </label>
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Paste your recipe text here..."
-                  style={{
-                    width: '100%',
-                    height: '120px',
-                    padding: '12px',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    marginBottom: '16px',
-                    boxSizing: 'border-box',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    flex: '1',
-                  }}
-                  disabled={isSubmitting}
-                />
+                <div style={{ 
+                  height: '180px', // Fixed height container
+                  marginBottom: '16px',
+                }}>
+                  <textarea
+                    value={textInput}
+                    onChange={(e) => setTextInput(e.target.value)}
+                    placeholder="Paste your recipe text here..."
+                    style={{
+                      width: '100%',
+                      height: '100%', // Fill the container
+                      padding: '12px',
+                      border: '1px solid #e9e9e7',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
+                      resize: 'none',
+                      fontFamily: 'inherit',
+                    }}
+                    disabled={isSubmitting}
+                  />
+                </div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
                   <button
                     onClick={closeModal}
@@ -319,22 +322,28 @@ export default function Home() {
                 }}>
                   Recipe URL
                 </label>
-                <input
-                  type="url"
-                  value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
-                  placeholder="https://example.com/recipe"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    marginBottom: '16px',
-                    boxSizing: 'border-box',
-                  }}
-                  disabled={isSubmitting}
-                />
+                <div style={{ 
+                  height: '180px', // Fixed height container - same as text tab
+                  marginBottom: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}>
+                  <input
+                    type="url"
+                    value={linkInput}
+                    onChange={(e) => setLinkInput(e.target.value)}
+                    placeholder="https://example.com/recipe"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #e9e9e7',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      boxSizing: 'border-box',
+                    }}
+                    disabled={isSubmitting}
+                  />
+                </div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
                   <button
                     onClick={closeModal}
@@ -376,118 +385,125 @@ export default function Home() {
                   Recipe Image
                 </label>
                 
-                {/* File Upload Area */}
-                <div style={{
-                  border: '2px dashed #e9e9e7',
-                  borderRadius: '8px',
-                  padding: '20px',
-                  textAlign: 'center',
+                <div style={{ 
+                  height: '180px', // Fixed height container - same as other tabs
                   marginBottom: '16px',
-                  cursor: 'pointer',
-                  backgroundColor: selectedImage ? '#f7f6f3' : 'transparent',
-                  transition: 'all 0.2s ease',
-                  flex: '1',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '120px',
-                }}
-                onClick={() => document.getElementById('image-upload')?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.borderColor = '#37352f';
-                  e.currentTarget.style.backgroundColor = '#f7f6f3';
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.borderColor = '#e9e9e7';
-                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.borderColor = '#e9e9e7';
-                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
-                  
-                  const files = e.dataTransfer.files;
-                  if (files.length > 0) {
-                    const file = files[0];
-                    if (file.type.startsWith('image/')) {
-                      setSelectedImage(file);
-                      const previewUrl = URL.createObjectURL(file);
-                      setImagePreview(previewUrl);
+                }}>
+                  {/* File Upload Area */}
+                  <div style={{
+                    border: '2px dashed #e9e9e7',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    backgroundColor: selectedImage ? '#f7f6f3' : 'transparent',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%', // Fill the container
+                    boxSizing: 'border-box',
+                  }}
+                  onClick={() => document.getElementById('image-upload')?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#37352f';
+                    e.currentTarget.style.backgroundColor = '#f7f6f3';
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#e9e9e7';
+                    e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.style.borderColor = '#e9e9e7';
+                    e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
+                    
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                      const file = files[0];
+                      if (file.type.startsWith('image/')) {
+                        setSelectedImage(file);
+                        const previewUrl = URL.createObjectURL(file);
+                        setImagePreview(previewUrl);
+                      }
                     }
-                  }
-                }}
-                >
-                  <input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    style={{ display: 'none' }}
-                    disabled={isSubmitting}
-                  />
-                  
-                  {imagePreview ? (
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px',
-                    }}>
-                      <img
-                        src={imagePreview}
-                        alt="Recipe preview"
-                        style={{
+                  }}
+                  >
+                    <input
+                      id="image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      style={{ display: 'none' }}
+                      disabled={isSubmitting}
+                    />
+                    
+                    {imagePreview ? (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}>
+                        <img
+                          src={imagePreview}
+                          alt="Recipe preview"
+                          style={{
+                            maxWidth: '120px',
+                            maxHeight: '90px',
+                            borderRadius: '4px',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        <div style={{
+                          fontSize: '13px',
+                          color: '#666',
+                          fontWeight: '500',
+                          textAlign: 'center',
+                          wordBreak: 'break-word',
                           maxWidth: '200px',
-                          maxHeight: '150px',
-                          borderRadius: '4px',
-                          objectFit: 'cover',
-                        }}
-                      />
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#666',
-                        fontWeight: '500',
-                      }}>
-                        {selectedImage?.name}
+                        }}>
+                          {selectedImage?.name}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#999',
+                        }}>
+                          Click to change image
+                        </div>
                       </div>
+                    ) : (
                       <div style={{
-                        fontSize: '12px',
-                        color: '#999',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '8px',
                       }}>
-                        Click to change image
+                        <div style={{
+                          fontSize: '24px',
+                          color: '#ccc',
+                        }}>
+                          📸
+                        </div>
+                        <div style={{
+                          fontSize: '14px',
+                          color: '#666',
+                          fontWeight: '500',
+                        }}>
+                          Upload Recipe Image
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: '#999',
+                        }}>
+                          Click or drag image here
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}>
-                      <div style={{
-                        fontSize: '24px',
-                        color: '#ccc',
-                      }}>
-                        📸
-                      </div>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#666',
-                        fontWeight: '500',
-                      }}>
-                        Upload Recipe Image
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#999',
-                      }}>
-                        Click or drag image here
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>

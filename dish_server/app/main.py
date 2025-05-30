@@ -14,7 +14,7 @@ from app.dependencies import NotAuthenticatedException
 from app.dish import router as dish_router
 from app.login import router as login_router
 
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.INFO)
 
 
 async def build_documentai_processor():

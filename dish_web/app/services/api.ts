@@ -137,6 +137,40 @@ export class ApiService {
   }
 
   /**
+   * Add a new dish from free text
+   */
+  static async addDishFromText(text: string): Promise<Recipe> {
+    try {
+      const url = `${buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DISH_FROM_TEXT)}?text=${encodeURIComponent(text)}`;
+      console.log(`Adding dish from text: ${url}`); // Debug log
+
+      const response = await fetch(url, {
+        method: 'POST',
+        ...this.defaultOptions,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const recipe: Recipe = await response.json();
+      console.log(`Successfully added recipe from text:`, recipe); // Debug log
+      return recipe;
+    } catch (error) {
+      console.error(`Error adding dish from text:`, error);
+      console.error(`URL attempted: ${buildApiUrl(API_CONFIG.ENDPOINTS.ADD_DISH_FROM_TEXT)}`);
+      throw error;
+    }
+  }
+
+  /**
    * Save edited recipe
    */
   static async saveEditedRecipe(dishId: string, recipe: Recipe): Promise<Recipe> {

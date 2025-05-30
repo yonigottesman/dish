@@ -19,6 +19,7 @@ export const API_CONFIG = {
     ALL_DISHES: '/all_dishes',
     DISH_BY_ID: '/dish',
     ADD_DISH_FROM_LINK: '/add_dish_from_link',
+    ADD_DISH_FROM_TEXT: '/add_dish_from_text',
     SAVE_EDIT: '/save_edit',
 
     // Auth endpoints

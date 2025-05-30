@@ -14,10 +14,54 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'text' | 'link' | 'image'>('link');
+  const [activeTab, setActiveTab] = useState<'text' | 'link' | 'image'>('text');
   const [linkInput, setLinkInput] = useState('');
+  const [textInput, setTextInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  // Reusable Spinner Component
+  const Spinner = () => (
+    <div style={{
+      width: '16px',
+      height: '16px',
+      border: '2px solid transparent',
+      borderTop: '2px solid white',
+      borderRadius: '50%',
+      animation: 'spin 0.5s linear infinite',
+    }} />
+  );
+
+  // Reusable Submit Button Component
+  const SubmitButton = ({ 
+    onClick, 
+    disabled, 
+    children 
+  }: { 
+    onClick: () => void;
+    disabled: boolean;
+    children: React.ReactNode;
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: '8px 16px',
+        background: disabled ? '#ccc' : '#37352f',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+      }}
+    >
+      {isSubmitting && <Spinner />}
+      {isSubmitting ? 'Adding...' : children}
+    </button>
+  );
 
   useEffect(() => {
     const fetchRecipes = async () => {
@@ -52,8 +96,7 @@ export default function Home() {
     try {
       setIsSubmitting(true);
       const newRecipe = await ApiService.addDishFromLink(linkInput.trim());
-      setShowModal(false);
-      setLinkInput('');
+      closeModal();
       router.push(`/recipe/${newRecipe.dish_id}`);
     } catch (err) {
       console.error('Failed to add recipe from link:', err);
@@ -61,6 +104,28 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAddFromText = async () => {
+    if (!textInput.trim()) return;
+    
+    try {
+      setIsSubmitting(true);
+      const newRecipe = await ApiService.addDishFromText(textInput.trim());
+      closeModal();
+      router.push(`/recipe/${newRecipe.dish_id}`);
+    } catch (err) {
+      console.error('Failed to add recipe from text:', err);
+      alert('Failed to add recipe from text. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setLinkInput('');
+    setTextInput('');
   };
 
   const Modal = () => {
@@ -98,7 +163,7 @@ export default function Home() {
           }}>
             <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Add New Recipe</h3>
             <button
-              onClick={() => setShowModal(false)}
+              onClick={closeModal}
               style={{
                 background: 'none',
                 border: 'none',
@@ -144,15 +209,77 @@ export default function Home() {
           </div>
 
           {/* Tab Content */}
-          <div style={{ padding: '20px' }}>
+          <div style={{ 
+            padding: '20px',
+            minHeight: '200px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {activeTab === 'text' && (
-              <div style={{ textAlign: 'center', color: '#666', padding: '40px 20px' }}>
-                Text input coming soon...
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100%' 
+              }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  color: '#37352f',
+                }}>
+                  Recipe Text
+                </label>
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Paste your recipe text here..."
+                  style={{
+                    width: '100%',
+                    height: '120px',
+                    padding: '12px',
+                    border: '1px solid #e9e9e7',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    marginBottom: '16px',
+                    boxSizing: 'border-box',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                    flex: '1',
+                  }}
+                  disabled={isSubmitting}
+                />
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+                  <button
+                    onClick={closeModal}
+                    style={{
+                      padding: '8px 16px',
+                      border: '1px solid #e9e9e7',
+                      background: 'white',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <SubmitButton
+                    onClick={handleAddFromText}
+                    disabled={!textInput.trim() || isSubmitting}
+                  >
+                    Add Recipe
+                  </SubmitButton>
+                </div>
               </div>
             )}
 
             {activeTab === 'link' && (
-              <div>
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100%' 
+              }}>
                 <label style={{
                   display: 'block',
                   marginBottom: '8px',
@@ -178,9 +305,9 @@ export default function Home() {
                   }}
                   disabled={isSubmitting}
                 />
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
                   <button
-                    onClick={() => setShowModal(false)}
+                    onClick={closeModal}
                     style={{
                       padding: '8px 16px',
                       border: '1px solid #e9e9e7',
@@ -193,41 +320,27 @@ export default function Home() {
                   >
                     Cancel
                   </button>
-                  <button
+                  <SubmitButton
                     onClick={handleAddFromLink}
                     disabled={!linkInput.trim() || isSubmitting}
-                    style={{
-                      padding: '8px 16px',
-                      background: !linkInput.trim() || isSubmitting ? '#ccc' : '#37352f',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: !linkInput.trim() || isSubmitting ? 'not-allowed' : 'pointer',
-                      fontSize: '14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
                   >
-                    {isSubmitting && (
-                      <div style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid transparent',
-                        borderTop: '2px solid white',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite',
-                      }} />
-                    )}
-                    {isSubmitting ? 'Adding...' : 'Add Recipe'}
-                  </button>
+                    Add Recipe
+                  </SubmitButton>
                 </div>
               </div>
             )}
 
             {activeTab === 'image' && (
-              <div style={{ textAlign: 'center', color: '#666', padding: '40px 20px' }}>
-                Image upload coming soon...
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                height: '100%',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <div style={{ textAlign: 'center', color: '#666', padding: '40px 20px' }}>
+                  Image upload coming soon...
+                </div>
               </div>
             )}
           </div>

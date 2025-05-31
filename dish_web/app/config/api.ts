@@ -22,6 +22,7 @@ export const API_CONFIG = {
     ADD_DISH_FROM_TEXT: '/add_dish_from_text',
     ADD_DISH_FROM_IMAGE: '/add_dish_from_image',
     SAVE_EDIT: '/save_edit',
+    IMAGE: '/image',
 
     // Auth endpoints
     LOGIN: '/token',

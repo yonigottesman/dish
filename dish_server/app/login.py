@@ -1,4 +1,4 @@
-import logging
+import uuid
 from datetime import timedelta
 from typing import Annotated
 
@@ -11,7 +11,7 @@ from google.oauth2 import id_token
 from app.config import settings
 from app.crud import authenticate_user, get_user, insert_user
 from app.dependencies import CurrentUser, LoggerDep, SessionDep
-from app.models import GoogleTokenRequest, UserCreate, UserInDB
+from app.models import GoogleTokenRequest, UserCreateRequest, UserInDB
 from app.security import create_access_token, get_password_hash
 
 router = APIRouter(
@@ -61,7 +61,7 @@ async def login_for_access_token(
 
 
 @router.post("/signup")
-async def signup(user_data: UserCreate, db: SessionDep, logger: LoggerDep):
+async def signup(user_data: UserCreateRequest, db: SessionDep, logger: LoggerDep):
     # Check if username already exists
     if await get_user(db, user_data.username):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already registered")
@@ -70,6 +70,7 @@ async def signup(user_data: UserCreate, db: SessionDep, logger: LoggerDep):
     hashed_password = get_password_hash(user_data.password)
 
     user = UserInDB(
+        user_id=str(uuid.uuid4())[:8],
         username=user_data.username,
         email=user_data.email,
         full_name=user_data.full_name,
@@ -136,6 +137,7 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
 
         if not await get_user(db, username):
             user = UserInDB(
+                user_id=str(uuid.uuid4())[:8],
                 username=username,
                 email=email,
                 full_name=name,

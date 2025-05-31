@@ -1,10 +1,6 @@
-from typing import Generator
-
-from fastapi import Request
 from google.cloud import firestore
 from google.cloud.firestore import AsyncClient
 
-from app.config import settings
 from app.models import RecipeModel, User, UserInDB
 from app.security import verify_password
 

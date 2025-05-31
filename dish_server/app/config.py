@@ -21,5 +21,7 @@ class Settings(BaseSettings):
     DOCUMENT_AI_PROCESSOR_ID: str = "ef4832a8654dc6ca"
     DOCUMENT_AI_LOCATION: str = "eu"
 
+    GCS_BUCKET_NAME: str = "dish_storage"
+
 
 settings = Settings()  # type: ignore

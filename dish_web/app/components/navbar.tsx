@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ApiService } from '../services/api';
 import { useAuth } from '../context/auth-context';
 
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <nav style={{
@@ -44,7 +43,7 @@ export default function Navbar() {
               </span>
             )}
             <button
-              onClick={() => ApiService.logout()}
+              onClick={() => logout()}
               style={{
                 padding: '8px 16px',
                 background: 'transparent',

@@ -5,13 +5,14 @@ import uuid
 
 import aiohttp
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, File, HTTPException, UploadFile
-from google.cloud import documentai_v1
+from fastapi import APIRouter, Body, File, HTTPException, Response, UploadFile
+from google.cloud import documentai_v1, storage
 from google.genai import types
 from PIL import Image, ImageDraw
 from pillow_heif import register_heif_opener
 from pydantic import BaseModel, Field
 
+from app.config import settings
 from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
 from app.dependencies import (
     CurrentUser,
@@ -20,8 +21,9 @@ from app.dependencies import (
     GenaiClientDep,
     LoggerDep,
     SessionDep,
+    StorageClientDep,
 )
-from app.models import RecipeModel
+from app.models import RecipeModel, User
 
 router = APIRouter(
     tags=["dish"],
@@ -92,7 +94,7 @@ async def add_dish_from_link(
     assert isinstance(parsed_recipe, RecipeForLLM), "Response parsing failed"
 
     new_recipe = RecipeModel(
-        dish_id=str(uuid.uuid4())[:8],
+        dish_id=str(uuid.uuid4()),
         title=parsed_recipe.title,
         description=parsed_recipe.description,
         ingredients=parsed_recipe.ingredients,
@@ -127,7 +129,7 @@ async def add_dish_from_text(
     parsed_recipe = genai_response.parsed
     assert isinstance(parsed_recipe, RecipeForLLM), "Response parsing failed"
     new_recipe = RecipeModel(
-        dish_id=str(uuid.uuid4())[:8],
+        dish_id=str(uuid.uuid4()),
         title=parsed_recipe.title,
         description=parsed_recipe.description,
         ingredients=parsed_recipe.ingredients,
@@ -139,6 +141,13 @@ async def add_dish_from_text(
     return new_recipe.model_dump()
 
 
+def upload_image_to_gcs(image_bytes: bytes, image_id: str, user: User, storage_client: storage.Client):
+    blob_path = f"{user.user_id}/{image_id}"
+    blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
+    blob.upload_from_string(image_bytes, content_type="image/jpeg")
+    return blob.public_url
+
+
 @router.post("/add_dish_from_image")
 async def add_dish_from_image(
     current_user: CurrentUser,
@@ -147,14 +156,15 @@ async def add_dish_from_image(
     documentai_client: DocumentaiClientDep,
     logger: LoggerDep,
     genai_client: GenaiClientDep,
+    storage_client: StorageClientDep,
     image: UploadFile = File(...),
 ):
     image_bytes = await image.read()
     pil_image = Image.open(io.BytesIO(image_bytes))
     jpeg_image = pil_image.convert("RGB")
-    jpeg_bytes = io.BytesIO()
-    jpeg_image.save(jpeg_bytes, format="JPEG")
-    jpeg_bytes = jpeg_bytes.getvalue()
+    jpeg_buffer = io.BytesIO()
+    jpeg_image.save(jpeg_buffer, format="JPEG")
+    jpeg_bytes = jpeg_buffer.getvalue()
 
     logger.info("uploaded image")
     raw_document = documentai_v1.RawDocument(
@@ -198,15 +208,15 @@ async def add_dish_from_image(
         contents=[
             (
                 "Given the following text and image, extract the exact text of the "
-                "ingredients and instructions for the recipe. Use the same language as in the text."
-                "Write the ingredients and instructions in the same order and exact values as they are in the text and image."
+                "ingredients and instructions for the recipe. Use the same language as in the text. "
+                "Write the ingredients and instructions in the same order and exact values as they are in the text and image. "
                 "<text>" + document.text + "</text>"
             ),
             types.Part.from_bytes(
                 data=image_bytes,
                 mime_type="image/jpeg",
             ),
-        ],
+        ],  # type: ignore
         config={
             "response_mime_type": "application/json",
             "response_schema": RecipeForLLM,
@@ -215,22 +225,47 @@ async def add_dish_from_image(
 
     parsed_recipe = genai_response.parsed
     assert isinstance(parsed_recipe, RecipeForLLM), "Response parsing failed"
+
+    dish_id = str(uuid.uuid4())
+    image_id = f"{str(uuid.uuid4())}.jpeg"
+    upload_image_to_gcs(jpeg_bytes, image_id, current_user, storage_client)
+
     new_recipe = RecipeModel(
-        dish_id=str(uuid.uuid4())[:8],
+        dish_id=dish_id,
         title=parsed_recipe.title,
         description=parsed_recipe.description,
         ingredients=parsed_recipe.ingredients,
         instructions=parsed_recipe.instructions,
         link=None,
         emoji=parsed_recipe.emoji,
+        image_ids=[image_id],
     )
     await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()
 
 
+@router.get("/image/{image_id}")
+async def get_image(
+    image_id: str,
+    storage_client: StorageClientDep,
+    user: CurrentUser,
+    logger: LoggerDep,
+):
+    blob_path = f"{user.user_id}/{image_id}"
+    blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
+    return Response(content=blob.download_as_bytes(), media_type="image/jpeg")
+
+
 @router.put("/save_edit/{dish_id}")
-async def save_edit_dish(dish_id: str, updated_recipe: RecipeModel, current_user: CurrentUser, db: SessionDep):
+async def save_edit_dish(
+    dish_id: str,
+    current_user: CurrentUser,
+    db: SessionDep,
+    updated_recipe: RecipeModel = Body(...),
+    original_recipe: RecipeModel = Body(...),
+):
     """Save edited recipe, overriding the old recipe with all new fields"""
     assert updated_recipe.dish_id == dish_id, "Dish ID mismatch"
+    assert original_recipe.dish_id == dish_id, "Original recipe dish ID mismatch"
     await update_recipe(db, current_user, updated_recipe)
     return updated_recipe.model_dump()

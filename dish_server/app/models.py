@@ -11,6 +11,7 @@ class TokenData(BaseModel):
 
 
 class User(BaseModel):
+    user_id: str
     username: str
     email: str | None = None
     full_name: str | None = None
@@ -20,7 +21,7 @@ class UserInDB(User):
     hashed_password: str | None = None
 
 
-class UserCreate(BaseModel):
+class UserCreateRequest(BaseModel):
     username: str
     password: str
     email: str | None = None
@@ -37,5 +38,6 @@ class RecipeModel(BaseModel):
     description: str
     ingredients: list[str]
     instructions: list[str]
+    image_ids: list[str] | None = None
     link: str | None = None
     emoji: str | None = None

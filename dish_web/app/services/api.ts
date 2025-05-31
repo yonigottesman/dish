@@ -9,6 +9,7 @@ export interface Recipe {
   instructions: string[];
   link?: string;
   emoji?: string;
+  image_ids?: string[];
 }
 
 // User interface
@@ -214,7 +215,7 @@ export class ApiService {
   /**
    * Save edited recipe
    */
-  static async saveEditedRecipe(dishId: string, recipe: Recipe): Promise<Recipe> {
+  static async saveEditedRecipe(dishId: string, updatedRecipe: Recipe, originalRecipe: Recipe): Promise<Recipe> {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.SAVE_EDIT, dishId);
       console.log(`Saving edited recipe to: ${url}`); // Debug log
@@ -222,7 +223,10 @@ export class ApiService {
       const response = await fetch(url, {
         method: 'PUT',
         ...this.defaultOptions,
-        body: JSON.stringify(recipe),
+        body: JSON.stringify({
+          updated_recipe: updatedRecipe,
+          original_recipe: originalRecipe
+        }),
       });
 
       if (!response.ok) {
@@ -282,23 +286,38 @@ export class ApiService {
   }
 
   /**
-   * Logout user
+   * Logout the current user
    */
   static async logout(): Promise<boolean> {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.LOGOUT);
+      console.log(`Logging out: ${url}`); // Debug log
 
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'GET',
         ...this.defaultOptions,
       });
 
+      // Even if the response is not ok, we consider logout successful
+      // since the goal is to clear the session
+      console.log(`Logout response status: ${response.status}`);
+      
       // Redirect to login page
       window.location.href = '/login';
       return true;
     } catch (error) {
-      console.error('Error logging out:', error);
-      return false;
+      console.error('Error during logout:', error);
+      // Even if there's an error, we consider logout successful
+      // and redirect to login
+      window.location.href = '/login';
+      return true;
     }
+  }
+
+  /**
+   * Get the URL for an image by its ID
+   */
+  static getImageUrl(imageId: string): string {
+    return buildApiUrl(API_CONFIG.ENDPOINTS.IMAGE, imageId);
   }
 } 

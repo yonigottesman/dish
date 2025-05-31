@@ -404,6 +404,7 @@ export default function Home() {
                     justifyContent: 'center',
                     height: '100%', // Fill the container
                     boxSizing: 'border-box',
+                    overflow: 'hidden', // Prevent content from overflowing
                   }}
                   onClick={() => document.getElementById('image-upload')?.click()}
                   onDragOver={(e) => {
@@ -421,14 +422,12 @@ export default function Home() {
                     e.currentTarget.style.borderColor = '#e9e9e7';
                     e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
                     
-                    const files = e.dataTransfer.files;
-                    if (files.length > 0) {
-                      const file = files[0];
-                      if (file.type.startsWith('image/')) {
-                        setSelectedImage(file);
-                        const previewUrl = URL.createObjectURL(file);
-                        setImagePreview(previewUrl);
-                      }
+                    const files = Array.from(e.dataTransfer.files);
+                    const imageFile = files.find(file => file.type.startsWith('image/'));
+                    if (imageFile) {
+                      setSelectedImage(imageFile);
+                      const previewUrl = URL.createObjectURL(imageFile);
+                      setImagePreview(previewUrl);
                     }
                   }}
                   >
@@ -447,29 +446,37 @@ export default function Home() {
                         flexDirection: 'column',
                         alignItems: 'center',
                         gap: '8px',
+                        height: '100%',
+                        justifyContent: 'center',
+                        maxHeight: '100%',
+                        overflow: 'hidden'
                       }}>
                         <img
                           src={imagePreview}
                           alt="Recipe preview"
                           style={{
-                            maxWidth: '120px',
-                            maxHeight: '90px',
+                            maxWidth: '100px',
+                            maxHeight: '70px',
                             borderRadius: '4px',
                             objectFit: 'cover',
+                            flexShrink: 0
                           }}
                         />
                         <div style={{
-                          fontSize: '13px',
+                          fontSize: '12px',
                           color: '#666',
                           fontWeight: '500',
                           textAlign: 'center',
                           wordBreak: 'break-word',
-                          maxWidth: '200px',
+                          maxWidth: '180px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
                         }}>
                           {selectedImage?.name}
                         </div>
                         <div style={{
-                          fontSize: '11px',
+                          fontSize: '10px',
                           color: '#999',
                         }}>
                           Click to change image

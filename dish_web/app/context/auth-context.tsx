@@ -2,7 +2,8 @@
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { User, AuthState, SignupData, checkAuthStatus, logout, signup } from '../services/auth';
+import { User, AuthState, SignupData, checkAuthStatus, signup } from '../services/auth';
+import { ApiService } from '../services/api';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<boolean>;
@@ -134,7 +135,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogout = async (): Promise<boolean> => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
     
-    const success = await logout();
+    const success = await ApiService.logout();
     
     if (success) {
       setAuthState({
@@ -144,7 +145,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         error: null
       });
       
-      router.push('/login');
+      // Force redirect to login page
+      window.location.href = '/login';
       return true;
     }
     

@@ -8,6 +8,89 @@ import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
 
+// Component to display recipe images
+function RecipeImages({ imageIds }: { imageIds: string[] }) {
+  if (!imageIds || imageIds.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: imageIds.length === 1 
+        ? '1fr' 
+        : imageIds.length === 2 
+          ? 'repeat(2, 1fr)' 
+          : 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '12px',
+      maxHeight: imageIds.length > 4 ? '400px' : 'auto',
+      overflowY: imageIds.length > 4 ? 'auto' : 'visible',
+      marginBottom: '32px'
+    }}>
+      {imageIds.map((imageId, index) => (
+        <div
+          key={imageId}
+          style={{
+            position: 'relative',
+            borderRadius: '6px',
+            overflow: 'hidden',
+            border: '1px solid #e9e9e7',
+            background: '#ffffff',
+            aspectRatio: '16/9',
+            cursor: 'pointer',
+            transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+          onClick={() => {
+            // Open image in new tab for full size viewing
+            window.open(ApiService.getImageUrl(imageId), '_blank');
+          }}
+        >
+          <img
+            src={ApiService.getImageUrl(imageId)}
+            alt={`Recipe image ${index + 1}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block'
+            }}
+            onError={(e) => {
+              // Show placeholder for broken images
+              const target = e.currentTarget;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                parent.innerHTML = `
+                  <div style="
+                    width: 100%; 
+                    height: 100%; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center; 
+                    background: #f0f0f0; 
+                    color: #999;
+                    font-size: 14px;
+                  ">
+                    Image not available
+                  </div>
+                `;
+              }
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function RecipePage() {
   const params = useParams();
   const recipeId = params.id as string;
@@ -54,11 +137,11 @@ export default function RecipePage() {
   };
 
   const handleSave = async () => {
-    if (!editedRecipe) return;
+    if (!editedRecipe || !recipe) return;
 
     try {
       setIsSaving(true);
-      const savedRecipe = await ApiService.saveEditedRecipe(recipeId, editedRecipe);
+      const savedRecipe = await ApiService.saveEditedRecipe(recipeId, editedRecipe, recipe);
       setRecipe(savedRecipe);
       setEditedRecipe(null);
       setIsEditing(false);
@@ -403,6 +486,9 @@ export default function RecipePage() {
             </div>
           )}
         </div>
+
+        {/* Display recipe images if they exist */}
+        <RecipeImages imageIds={displayRecipe.image_ids || []} />
 
         <div style={{ 
           display: 'grid', 

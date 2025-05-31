@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from google import genai
 from google.api_core.client_options import ClientOptions
-from google.cloud import documentai_v1, firestore
+from google.cloud import documentai_v1, firestore, storage
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
@@ -26,6 +26,7 @@ async def build_documentai_processor():
     )
     request = documentai_v1.GetProcessorRequest(name=full_processor_name)
     processor = await client.get_processor(request=request)
+
     return processor, client
 
 
@@ -35,6 +36,7 @@ async def lifespan(app: FastAPI):
     app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
     app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
     app.state.documentai_processor, app.state.documentai_client = await build_documentai_processor()
+    app.state.storage_client = storage.Client(project=settings.GOOGLE_CLOUD_PROJECT)
     yield
 
     # Shutdown: Close the clients

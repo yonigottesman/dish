@@ -216,18 +216,28 @@ export class ApiService {
   /**
    * Save edited recipe
    */
-  static async saveEditedRecipe(dishId: string, updatedRecipe: Recipe, originalRecipe: Recipe): Promise<Recipe> {
+  static async saveEditedRecipe(dishId: string, updatedRecipe: Recipe, originalRecipe: Recipe, images?: File[]): Promise<Recipe> {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.SAVE_EDIT, dishId);
       console.log(`Saving edited recipe to: ${url}`); // Debug log
 
+      // Create FormData to send JSON strings as form fields and images
+      const formData = new FormData();
+      formData.append('updated_recipe', JSON.stringify(updatedRecipe));
+      formData.append('original_recipe', JSON.stringify(originalRecipe));
+      
+      // Add images if provided
+      if (images && images.length > 0) {
+        images.forEach((image) => {
+          formData.append('images', image);
+        });
+      }
+
       const response = await fetch(url, {
         method: 'PUT',
-        ...this.defaultOptions,
-        body: JSON.stringify({
-          updated_recipe: updatedRecipe,
-          original_recipe: originalRecipe
-        }),
+        mode: 'cors',
+        credentials: 'include',
+        body: formData,
       });
 
       if (!response.ok) {

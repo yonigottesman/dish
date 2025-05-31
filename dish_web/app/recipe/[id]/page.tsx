@@ -9,7 +9,11 @@ import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
 
 // Component to display recipe images
-function RecipeImages({ imageIds }: { imageIds: string[] }) {
+function RecipeImages({ imageIds, isEditing, onDeleteImage }: { 
+  imageIds: string[];
+  isEditing?: boolean;
+  onDeleteImage?: (imageId: string) => void;
+}) {
   if (!imageIds || imageIds.length === 0) {
     return null;
   }
@@ -85,6 +89,40 @@ function RecipeImages({ imageIds }: { imageIds: string[] }) {
               }
             }}
           />
+          {isEditing && onDeleteImage && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent opening image when clicking delete
+                onDeleteImage(imageId);
+              }}
+              style={{
+                position: 'absolute',
+                top: '8px',
+                right: '8px',
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                background: '#e74c3c',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#c0392b';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = '#e74c3c';
+              }}
+            >
+              ×
+            </button>
+          )}
         </div>
       ))}
     </div>
@@ -103,6 +141,10 @@ export default function RecipePage() {
   const [checkedInstructions, setCheckedInstructions] = useState<Set<number>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Add states for image upload
+  const [newImages, setNewImages] = useState<File[]>([]);
+  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
 
   const toggleIngredient = (index: number) => {
     const newChecked = new Set(checkedIngredients);
@@ -134,6 +176,9 @@ export default function RecipePage() {
   const handleCancel = () => {
     setEditedRecipe(null);
     setIsEditing(false);
+    // Clear new images when canceling
+    setNewImages([]);
+    setNewImagePreviews([]);
   };
 
   const handleSave = async () => {
@@ -141,10 +186,13 @@ export default function RecipePage() {
 
     try {
       setIsSaving(true);
-      const savedRecipe = await ApiService.saveEditedRecipe(recipeId, editedRecipe, recipe);
+      const savedRecipe = await ApiService.saveEditedRecipe(recipeId, editedRecipe, recipe, newImages);
       setRecipe(savedRecipe);
       setEditedRecipe(null);
       setIsEditing(false);
+      // Clear new images after successful save
+      setNewImages([]);
+      setNewImagePreviews([]);
     } catch (err) {
       console.error('Failed to save recipe:', err);
       alert('Failed to save recipe. Please try again.');
@@ -215,6 +263,36 @@ export default function RecipePage() {
         instructions: newInstructions
       });
     }
+  };
+
+  const removeImage = (imageId: string) => {
+    if (editedRecipe && editedRecipe.image_ids) {
+      setEditedRecipe({
+        ...editedRecipe,
+        image_ids: editedRecipe.image_ids.filter(id => id !== imageId)
+      });
+    }
+  };
+
+  // Add function to handle new image uploads
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length > 0) {
+      setNewImages(prev => [...prev, ...files]);
+      
+      // Create preview URLs
+      const previews = files.map(file => URL.createObjectURL(file));
+      setNewImagePreviews(prev => [...prev, ...previews]);
+    }
+  };
+
+  const removeNewImage = (index: number) => {
+    setNewImages(prev => prev.filter((_, i) => i !== index));
+    setNewImagePreviews(prev => {
+      // Clean up the URL object
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   useEffect(() => {
@@ -536,7 +614,167 @@ export default function RecipePage() {
         </div>
 
         {/* Display recipe images if they exist */}
-        <RecipeImages imageIds={displayRecipe.image_ids || []} />
+        <RecipeImages imageIds={displayRecipe.image_ids || []} isEditing={isEditing} onDeleteImage={removeImage} />
+
+        {/* Image Upload Section - Only show in edit mode */}
+        {isEditing && (
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <h3 style={{ 
+                fontSize: '18px', 
+                fontWeight: '600', 
+                color: '#37352f',
+                margin: '0'
+              }}>
+                Add New Images
+              </h3>
+            </div>
+            
+            {/* File Upload Area */}
+            <div style={{
+              border: '2px dashed #e9e9e7',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              cursor: 'pointer',
+              backgroundColor: newImages.length > 0 ? '#f7f6f3' : 'transparent',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '120px',
+              marginBottom: '16px'
+            }}
+            onClick={() => document.getElementById('edit-image-upload')?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = '#37352f';
+              e.currentTarget.style.backgroundColor = '#f7f6f3';
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = '#e9e9e7';
+              e.currentTarget.style.backgroundColor = newImages.length > 0 ? '#f7f6f3' : 'transparent';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = '#e9e9e7';
+              e.currentTarget.style.backgroundColor = newImages.length > 0 ? '#f7f6f3' : 'transparent';
+              
+              const files = Array.from(e.dataTransfer.files);
+              const imageFiles = files.filter(file => file.type.startsWith('image/'));
+              if (imageFiles.length > 0) {
+                setNewImages(prev => [...prev, ...imageFiles]);
+                const previews = imageFiles.map(file => URL.createObjectURL(file));
+                setNewImagePreviews(prev => [...prev, ...previews]);
+              }
+            }}
+            >
+              <input
+                id="edit-image-upload"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+                disabled={isSaving}
+              />
+              
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <div style={{
+                  fontSize: '24px',
+                  color: '#ccc',
+                }}>
+                  📸
+                </div>
+                <div style={{
+                  fontSize: '14px',
+                  color: '#666',
+                  fontWeight: '500',
+                }}>
+                  Upload New Images
+                </div>
+                <div style={{
+                  fontSize: '12px',
+                  color: '#999',
+                }}>
+                  Click or drag images here (multiple files supported)
+                </div>
+              </div>
+            </div>
+
+            {/* Preview new images */}
+            {newImages.length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                gap: '12px',
+                marginBottom: '16px'
+              }}>
+                {newImagePreviews.map((preview, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      position: 'relative',
+                      borderRadius: '6px',
+                      overflow: 'hidden',
+                      border: '1px solid #e9e9e7',
+                      background: '#ffffff',
+                      aspectRatio: '16/9'
+                    }}
+                  >
+                    <img
+                      src={preview}
+                      alt={`New image ${index + 1}`}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        display: 'block'
+                      }}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeNewImage(index);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '4px',
+                        right: '4px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: '#e74c3c',
+                        color: 'white',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ 
           display: 'grid', 

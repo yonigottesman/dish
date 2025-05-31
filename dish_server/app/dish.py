@@ -5,7 +5,7 @@ import uuid
 
 import aiohttp
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, Body, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from google.cloud import documentai_v1, storage
 from google.genai import types
 from langdetect import detect
@@ -65,7 +65,7 @@ def detect_language(recipe: RecipeForLLM) -> str:
     text = "\n".join(recipe.ingredients + recipe.instructions) + " " + recipe.title + " " + recipe.description
     try:
         return detect(text)
-    except Exception as e:
+    except Exception:
         return "en"
 
 
@@ -156,7 +156,12 @@ def upload_image_to_gcs(image_bytes: bytes, image_id: str, user: User, storage_c
     blob_path = f"{user.user_id}/{image_id}"
     blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
     blob.upload_from_string(image_bytes, content_type="image/jpeg")
-    return blob.public_url
+
+
+def delete_image_from_gcs(image_id: str, user: User, storage_client: storage.Client):
+    blob_path = f"{user.user_id}/{image_id}"
+    blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
+    blob.delete()
 
 
 @router.post("/add_dish_from_image")
@@ -220,7 +225,8 @@ async def add_dish_from_image(
             (
                 "Given the following text and image, extract the exact text of the "
                 "ingredients and instructions for the recipe. Use the same language as in the text. "
-                "Write the ingredients and instructions in the same order and exact values as they are in the text and image. "
+                "Write the ingredients and instructions in the same order and exact values "
+                "as they are in the text and image. "
                 "<text>" + document.text + "</text>"
             ),
             types.Part.from_bytes(
@@ -273,11 +279,45 @@ async def save_edit_dish(
     dish_id: str,
     current_user: CurrentUser,
     db: SessionDep,
-    updated_recipe: RecipeModel = Body(...),
-    original_recipe: RecipeModel = Body(...),
+    storage_client: StorageClientDep,
+    updated_recipe: str = Form(...),
+    original_recipe: str = Form(...),
+    images: list[UploadFile] | None = File(None),
 ):
     """Save edited recipe, overriding the old recipe with all new fields"""
-    assert updated_recipe.dish_id == dish_id, "Dish ID mismatch"
-    assert original_recipe.dish_id == dish_id, "Original recipe dish ID mismatch"
-    await update_recipe(db, current_user, updated_recipe)
-    return updated_recipe.model_dump()
+    updated_recipe_model = RecipeModel.model_validate_json(updated_recipe)
+    original_recipe_model = RecipeModel.model_validate_json(original_recipe)
+    assert updated_recipe_model.dish_id == dish_id, "Dish ID mismatch"
+
+    # Find images that need to be deleted (in original but not in updated)
+    original_image_ids = set(original_recipe_model.image_ids or [])
+    updated_image_ids = set(updated_recipe_model.image_ids or [])
+    images_to_delete = original_image_ids - updated_image_ids
+
+    # Delete removed images from GCS
+    for image_id in images_to_delete:
+        delete_image_from_gcs(image_id, current_user, storage_client)
+
+    # Process new images if any were uploaded
+    if images:
+        new_image_ids = []
+        for image in images:
+            image_bytes = await image.read()
+            # Convert to JPEG if needed
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            jpeg_image = pil_image.convert("RGB")
+            jpeg_buffer = io.BytesIO()
+            jpeg_image.save(jpeg_buffer, format="JPEG")
+            jpeg_bytes = jpeg_buffer.getvalue()
+
+            # Upload to GCS
+            image_id = f"{str(uuid.uuid4())}.jpeg"
+            upload_image_to_gcs(jpeg_bytes, image_id, current_user, storage_client)
+            new_image_ids.append(image_id)
+
+        # Add new image IDs to the existing ones
+        existing_image_ids = updated_recipe_model.image_ids or []
+        updated_recipe_model.image_ids = existing_image_ids + new_image_ids
+
+    await update_recipe(db, current_user, updated_recipe_model)
+    return updated_recipe_model.model_dump()

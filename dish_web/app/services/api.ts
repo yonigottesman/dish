@@ -10,6 +10,7 @@ export interface Recipe {
   link?: string;
   emoji?: string;
   image_ids?: string[];
+  language: string;
 }
 
 // User interface

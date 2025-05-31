@@ -366,6 +366,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "ipykernel" },
     { name = "itsdangerous" },
+    { name = "langdetect" },
     { name = "passlib", extra = ["bcrypt"] },
     { name = "pillow" },
     { name = "pillow-heif" },
@@ -386,6 +387,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.17.0" },
     { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
+    { name = "langdetect", specifier = ">=1.0.9" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
     { name = "pillow", specifier = ">=11.2.1" },
     { name = "pillow-heif", specifier = ">=0.22.0" },
@@ -958,6 +960,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/99/1b/72906d554acfeb588
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2f/57/6bffd4b20b88da3800c5d691e0337761576ee688eb01299eae865689d2df/jupyter_core-5.8.1-py3-none-any.whl", hash = "sha256:c28d268fc90fb53f1338ded2eb410704c5449a358406e8a948b75706e24863d0", size = 28880, upload-time = "2025-05-27T07:38:15.137Z" },
 ]
+
+[[package]]
+name = "langdetect"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474, upload-time = "2021-05-07T07:54:13.562Z" }
 
 [[package]]
 name = "markdown-it-py"

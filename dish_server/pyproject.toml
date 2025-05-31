@@ -15,6 +15,7 @@ dependencies = [
     "google-genai>=1.17.0",
     "ipykernel>=6.29.5",
     "itsdangerous>=2.2.0",
+    "langdetect>=1.0.9",
     "passlib[bcrypt]>=1.7.4",
     "pillow>=11.2.1",
     "pillow-heif>=0.22.0",

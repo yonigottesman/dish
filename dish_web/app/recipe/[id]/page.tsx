@@ -333,6 +333,9 @@ export default function RecipePage() {
   }
 
   const displayRecipe = isEditing ? editedRecipe! : recipe;
+  
+  // Check if the recipe language is Hebrew for RTL text direction
+  const isHebrew = displayRecipe.language === 'he';
 
   return (
     <ProtectedRoute>
@@ -357,7 +360,8 @@ export default function RecipePage() {
             display: 'flex',
             alignItems: 'center',
             gap: '12px',
-            marginBottom: '16px'
+            marginBottom: '16px',
+            flexDirection: isHebrew ? 'row-reverse' : 'row'
           }}>
             {isEditing ? (
               <>
@@ -388,7 +392,9 @@ export default function RecipePage() {
                     borderRadius: '4px',
                     padding: '8px',
                     flex: 1,
-                    background: '#ffffff'
+                    background: '#ffffff',
+                    direction: isHebrew ? 'rtl' : 'ltr',
+                    textAlign: isHebrew ? 'right' : 'left'
                   }}
                 />
               </>
@@ -399,7 +405,9 @@ export default function RecipePage() {
                   fontSize: '32px', 
                   fontWeight: '600', 
                   color: '#37352f',
-                  margin: '0'
+                  margin: '0',
+                  direction: isHebrew ? 'rtl' : 'ltr',
+                  textAlign: isHebrew ? 'right' : 'left'
                 }}>
                   {displayRecipe.title}
                 </h1>
@@ -422,7 +430,9 @@ export default function RecipePage() {
                 borderRadius: '4px',
                 padding: '8px',
                 resize: 'vertical',
-                background: '#ffffff'
+                background: '#ffffff',
+                direction: isHebrew ? 'rtl' : 'ltr',
+                textAlign: isHebrew ? 'right' : 'left'
               }}
             />
           ) : (
@@ -430,10 +440,48 @@ export default function RecipePage() {
               fontSize: '16px', 
               color: '#787774',
               lineHeight: '1.6',
-              margin: '0'
+              margin: '0',
+              direction: isHebrew ? 'rtl' : 'ltr',
+              textAlign: isHebrew ? 'right' : 'left'
             }}>
               {displayRecipe.description}
             </p>
+          )}
+
+          {/* Language Selection - Only shown in edit mode */}
+          {isEditing && (
+            <div style={{
+              marginTop: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              flexDirection: isHebrew ? 'row-reverse' : 'row'
+            }}>
+              <label style={{
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#37352f',
+                minWidth: '70px'
+              }}>
+                Language:
+              </label>
+              <select
+                value={displayRecipe.language || 'en'}
+                onChange={(e) => updateEditedField('language', e.target.value)}
+                style={{
+                  padding: '6px 8px',
+                  border: '1px solid #e9e9e7',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  minWidth: '120px'
+                }}
+              >
+                <option value="en">English</option>
+                <option value="he">עברית (Hebrew)</option>
+              </select>
+            </div>
           )}
           
           {recipe.link && (
@@ -531,7 +579,8 @@ export default function RecipePage() {
               background: isEditing ? '#e8f5e8' : '#f7f6f3', 
               borderRadius: '3px', 
               padding: '16px',
-              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7'
+              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7',
+              direction: isHebrew ? 'rtl' : 'ltr'
             }}>
               <ul style={{ 
                 listStyle: 'none', 
@@ -641,7 +690,8 @@ export default function RecipePage() {
               background: isEditing ? '#e8f5e8' : '#f7f6f3', 
               borderRadius: '3px', 
               padding: '16px',
-              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7'
+              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7',
+              direction: isHebrew ? 'rtl' : 'ltr'
             }}>
               <ol style={{ 
                 listStyle: 'none', 
@@ -673,23 +723,6 @@ export default function RecipePage() {
                         }}
                       />
                     )}
-                    <span style={{ 
-                      minWidth: '20px',
-                      height: '20px',
-                      background: checkedInstructions.has(index) ? '#9ca3af' : '#37352f',
-                      color: 'white',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                      fontWeight: '500',
-                      flexShrink: 0,
-                      marginTop: '2px',
-                      transition: 'all 0.2s ease'
-                    }}>
-                      {index + 1}
-                    </span>
                     {isEditing ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
                         <textarea

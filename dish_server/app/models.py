@@ -41,3 +41,4 @@ class RecipeModel(BaseModel):
     image_ids: list[str] | None = None
     link: str | None = None
     emoji: str | None = None
+    language: str = "en"

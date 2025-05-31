@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter, Body, File, HTTPException, Response, UploadFile
 from google.cloud import documentai_v1, storage
 from google.genai import types
+from langdetect import detect
 from PIL import Image, ImageDraw
 from pillow_heif import register_heif_opener
 from pydantic import BaseModel, Field
@@ -60,6 +61,14 @@ class RecipeForLLM(BaseModel):
     )
 
 
+def detect_language(recipe: RecipeForLLM) -> str:
+    text = "\n".join(recipe.ingredients + recipe.instructions) + " " + recipe.title + " " + recipe.description
+    try:
+        return detect(text)
+    except Exception as e:
+        return "en"
+
+
 @router.post("/add_dish_from_link")
 async def add_dish_from_link(
     link: str,
@@ -101,6 +110,7 @@ async def add_dish_from_link(
         instructions=parsed_recipe.instructions,
         link=link,
         emoji=parsed_recipe.emoji,
+        language=detect_language(parsed_recipe),
     )
     await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()
@@ -136,6 +146,7 @@ async def add_dish_from_text(
         instructions=parsed_recipe.instructions,
         link=None,
         emoji=parsed_recipe.emoji,
+        language=detect_language(parsed_recipe),
     )
     await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()
@@ -239,6 +250,7 @@ async def add_dish_from_image(
         link=None,
         emoji=parsed_recipe.emoji,
         image_ids=[image_id],
+        language=detect_language(parsed_recipe),
     )
     await insert_recipe(db, current_user, new_recipe)
     return new_recipe.model_dump()

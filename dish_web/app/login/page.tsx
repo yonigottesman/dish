@@ -43,8 +43,8 @@ export default function LoginPage() {
           }
         );
 
-        // Also enable One Tap
-        window.google.accounts.id.prompt();
+        // Removed One Tap prompt as it causes credential status errors when not logged in
+        // window.google.accounts.id.prompt();
       }
     };
 

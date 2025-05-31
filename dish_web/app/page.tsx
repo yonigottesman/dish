@@ -79,8 +79,9 @@ export default function Home() {
         console.error('Failed to fetch recipes:', err);
         // Check if the error is authentication related
         if (err instanceof Error && err.message === 'Authentication required') {
+          // Don't show error for auth issues - just let the redirect happen
           // Auth error handled by ApiService redirecting to login
-          setError('Authentication required');
+          setError(null);
         } else {
           setError('Failed to load recipes. Please try again later.');
         }

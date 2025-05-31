@@ -67,11 +67,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error('Auth verification error:', error);
+        
+        // Don't show error message when redirecting to login
+        // This prevents the red error flash before redirect
         setAuthState({
           isAuthenticated: false,
           user: null,
           isLoading: false,
-          error: 'Failed to verify authentication'
+          error: null  // Changed from 'Failed to verify authentication' to null
         });
 
         // Redirect to login on error if not already there

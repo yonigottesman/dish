@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     )
     # to get a string like this run:
     # openssl rand -hex 32
-    SECRET_KEY: str = "718d52839994c9e0e1351831dc252f25a51d6e690940601393878f37a585b65d"
+    SECRET_KEY: str = "secret"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30000
 

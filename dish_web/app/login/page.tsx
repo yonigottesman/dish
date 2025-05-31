@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { buildApiUrl, API_CONFIG } from '../config/api';
 import { useAuth } from '../context/auth-context';
@@ -12,7 +12,44 @@ declare global {
   }
 }
 
-export default function LoginPage() {
+// Separate component for handling search params
+function SearchParamsHandler({ 
+  setError 
+}: { 
+  setError: (error: string) => void 
+}) {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // Check for any auth parameters in the URL
+    const error = searchParams.get('error');
+    
+    if (error) {
+      setError(error === 'google_auth_failed' ? 'Google authentication failed' : error);
+    }
+
+    // We just check for auth status as normal - the backend has set the cookie
+    // The auth context will handle redirecting to home if authenticated
+    const checkAuth = async () => {
+      try {
+        // Check if we're authenticated after being redirected back from Google OAuth
+        const user = await checkAuthStatus();
+        if (user) {
+          // We're authenticated, redirect to home
+          window.location.href = '/';
+        }
+      } catch (error) {
+        console.error('Error checking auth status after OAuth redirect:', error);
+      }
+    };
+    
+    checkAuth();
+  }, [searchParams, setError]);
+
+  return null; // This component doesn't render anything
+}
+
+function LoginPageContent() {
   const { signup } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');
@@ -22,7 +59,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
-  const searchParams = useSearchParams();
 
   // Initialize Google Sign-In
   useEffect(() => {
@@ -99,33 +135,6 @@ export default function LoginPage() {
     }
   };
 
-  // Handle OAuth redirect with authentication response (kept for backward compatibility)
-  useEffect(() => {
-    // Check for any auth parameters in the URL
-    const error = searchParams.get('error');
-    
-    if (error) {
-      setError(error === 'google_auth_failed' ? 'Google authentication failed' : error);
-    }
-
-    // We just check for auth status as normal - the backend has set the cookie
-    // The auth context will handle redirecting to home if authenticated
-    const checkAuth = async () => {
-      try {
-        // Check if we're authenticated after being redirected back from Google OAuth
-        const user = await checkAuthStatus();
-        if (user) {
-          // We're authenticated, redirect to home
-          window.location.href = '/';
-        }
-      } catch (error) {
-        console.error('Error checking auth status after OAuth redirect:', error);
-      }
-    };
-    
-    checkAuth();
-  }, [searchParams]);
-
   const handleUsernamePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -194,6 +203,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-purple-100 py-12 px-4 sm:px-6 lg:px-8">
+      {/* Search params handler wrapped in Suspense */}
+      <Suspense fallback={null}>
+        <SearchParamsHandler setError={setError} />
+      </Suspense>
+      
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
         <div>
           <div className="mx-auto h-12 w-12 flex items-center justify-center text-4xl">
@@ -412,4 +426,8 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+export default function LoginPage() {
+  return <LoginPageContent />;
 }

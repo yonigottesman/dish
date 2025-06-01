@@ -49,7 +49,7 @@ app.include_router(dish_router)
 
 
 # Add CORS middleware to allow all requests
-allowed_origins = [
+development_origins = [
     "http://localhost:3000",  # React/Next.js dev server default
     "http://localhost:3001",  # Alternative React port
     "http://localhost:5173",  # Vite dev server default
@@ -61,17 +61,25 @@ allowed_origins = [
     "https://localhost:5173",
 ]
 
-# In production, we need to be more permissive but can't use "*" with credentials
-# So we'll use a more permissive pattern matching approach via middleware
-use_wildcard_origins = settings.IS_PRODUCTION
+production_origins = [
+    "http://localhost:3000",  # Allow local frontend to connect to prod backend for development
+    "https://localhost:3000",
+    # Production frontend URLs
+    "https://dish-web-941271455567.europe-west1.run.app",
+    "http://dish.yonigo.co",
+    "https://dish.yonigo.co",
+]
+
+# Choose origins based on environment
+allowed_origins = production_origins if settings.IS_PRODUCTION else development_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins if not use_wildcard_origins else allowed_origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
-    allow_origin_regex=r"https?://.*" if use_wildcard_origins else None,
+    # Remove the allow_origin_regex to avoid security issues
 )
 
 

@@ -136,11 +136,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   // Logout function
   const handleLogout = async (): Promise<boolean> => {
+    console.log('AuthContext: Starting logout process...');
     setAuthState(prev => ({ ...prev, isLoading: true }));
     
     const success = await ApiService.logout();
     
     if (success) {
+      console.log('AuthContext: Logout successful, clearing state');
       setAuthState({
         isAuthenticated: false,
         user: null,
@@ -149,10 +151,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       
       // Force redirect to login page
+      console.log('AuthContext: Redirecting to login page');
       window.location.href = '/login';
       return true;
     }
     
+    console.log('AuthContext: Logout failed, keeping current state');
     setAuthState(prev => ({ ...prev, isLoading: false }));
     return false;
   };

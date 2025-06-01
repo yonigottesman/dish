@@ -98,19 +98,60 @@ export const signup = async (userData: SignupData): Promise<{ success: boolean; 
   }
 };
 
+// Helper function to clear all auth cookies on client side
+const clearClientCookies = () => {
+  const cookiesToClear = ['access-token', 'access_token', 'access_token_cookie'];
+  
+  cookiesToClear.forEach(cookieName => {
+    // Clear for current domain
+    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    // Clear for parent domain (in case of subdomain)
+    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    // Clear with secure flag
+    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure;`;
+    // Clear with samesite=none
+    document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=none;`;
+  });
+};
+
 // Logout function
 export const logout = async (): Promise<boolean> => {
   try {
-    await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.LOGOUT), {
+    console.log('Attempting logout...');
+    const response = await fetch(buildApiUrl(API_CONFIG.ENDPOINTS.LOGOUT), {
       method: 'GET',
       credentials: 'include',
     });
 
-    // Redirect to login page
+    console.log('Logout response status:', response.status);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Logout response:', data);
+    } else {
+      console.warn('Logout request failed with status:', response.status);
+      // Even if logout fails on server, we should still redirect to login
+      // to clear any client-side state
+    }
+
+    // Clear cookies on client side as backup
+    console.log('Clearing client-side cookies...');
+    clearClientCookies();
+
+    // Always redirect to login page after logout attempt
+    // This ensures user is logged out even if server-side logout fails
     window.location.href = '/login';
     return true;
   } catch (error) {
     console.error('Error logging out:', error);
-    return false;
+    
+    // Clear cookies on client side even if server request failed
+    console.log('Clearing client-side cookies after error...');
+    clearClientCookies();
+    
+    // Even if there's an error, we should still redirect to login
+    // to clear any client-side state
+    window.location.href = '/login';
+    return true;
   }
 };

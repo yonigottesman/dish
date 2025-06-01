@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light" style={{colorScheme: 'light'}}>
       <head>
         <Script src="https://accounts.google.com/gsi/client" strategy="beforeInteractive" />
       </head>

@@ -209,10 +209,30 @@ async def logout(logger: LoggerDep):
     # Delete all possible cookie names for thorough logout
     json_response = JSONResponse(content=response)
 
+    # Log production status for debugging
+    logger.info(f"Logout: IS_PRODUCTION={settings.IS_PRODUCTION}")
+
     # Delete all possible cookie variations for complete logout
+    # Important: Use the same attributes that were used when setting the cookies
     cookie_names = ["access-token", "access_token", "access_token_cookie"]
+
     for cookie_name in cookie_names:
+        # Try deleting with production settings (secure=True, samesite="none")
+        json_response.delete_cookie(
+            key=cookie_name,
+            secure=True,
+            samesite="none",
+            domain=None,
+        )
+        # Also try deleting with development settings (secure=False, samesite="lax")
+        json_response.delete_cookie(
+            key=cookie_name,
+            secure=False,
+            samesite="lax",
+            domain=None,
+        )
+        # Also try deleting with minimal attributes (for backward compatibility)
         json_response.delete_cookie(key=cookie_name)
 
-    logger.info("User logged out, all auth cookies deleted")
+    logger.info("User logged out, all auth cookies deleted with multiple attribute combinations")
     return json_response

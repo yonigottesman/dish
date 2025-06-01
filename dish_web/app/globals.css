@@ -24,6 +24,18 @@
   --color-secondary-900: #581c87;
 }
 
+/* Force light mode only - disable automatic dark mode */
+:root {
+  color-scheme: light only;
+}
+
+/* Prevent any dark mode media queries from taking effect */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light only !important;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -32,6 +44,8 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* Force light color scheme */
+  color-scheme: light;
 }
 
 body {

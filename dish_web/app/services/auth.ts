@@ -69,12 +69,7 @@ export const signup = async (userData: SignupData): Promise<{ success: boolean; 
       const data = await response.json();
       console.log('Signup successful:', data);
 
-      // If backend provides a token, store it
-      if (data.access_token) {
-        // Set the authorization cookie if not already set by server
-        document.cookie = `access-token=Bearer ${data.access_token}; path=/; max-age=${30 * 60}; SameSite=Lax`;
-      }
-
+      // Backend sets the cookie automatically, no need to set it manually
       return {
         success: true,
         user: data.user,

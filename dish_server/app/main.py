@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, status
@@ -50,12 +49,29 @@ app.include_router(dish_router)
 
 
 # Add CORS middleware to allow all requests
+allowed_origins = [
+    "http://localhost:3000",  # React/Next.js dev server default
+    "http://localhost:3001",  # Alternative React port
+    "http://localhost:5173",  # Vite dev server default
+    "http://127.0.0.1:3000",  # Alternative localhost format
+    "http://127.0.0.1:3001",  # Alternative localhost format
+    "http://127.0.0.1:5173",  # Alternative localhost format
+    "https://localhost:3000",  # HTTPS versions
+    "https://localhost:3001",
+    "https://localhost:5173",
+]
+
+# In production, we need to be more permissive but can't use "*" with credentials
+# So we'll use a more permissive pattern matching approach via middleware
+use_wildcard_origins = settings.IS_PRODUCTION
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Using wildcard to allow any frontend
-    allow_credentials=True,  # Changed to True to support cookies
+    allow_origins=allowed_origins if not use_wildcard_origins else allowed_origins,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    allow_origin_regex=r"https?://.*" if use_wildcard_origins else None,
 )
 
 

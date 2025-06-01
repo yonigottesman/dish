@@ -23,5 +23,8 @@ class Settings(BaseSettings):
 
     GCS_BUCKET_NAME: str = "dish_storage"
 
+    # Environment setting
+    IS_PRODUCTION: bool = False
+
 
 settings = Settings()  # type: ignore

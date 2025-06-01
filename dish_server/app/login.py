@@ -47,13 +47,15 @@ async def login_for_access_token(
 
     # Set the cookie consistent with how the frontend expects it
     cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
     response.set_cookie(
         key="access-token",
         value=f"Bearer {access_token}",
         max_age=cookie_max_age,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
-        samesite="lax",
+        secure=settings.IS_PRODUCTION,  # Use secure cookies in production (HTTPS)
+        samesite="none" if settings.IS_PRODUCTION else "lax",  # Allow cross-origin in production
+        domain=None,  # Let browser determine domain
     )
 
     logger.info(f"User {user.username} logged in successfully")
@@ -96,13 +98,15 @@ async def signup(user_data: UserCreateRequest, db: SessionDep, logger: LoggerDep
 
     # Set the cookie consistent with how the frontend expects it
     cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
     response.set_cookie(
         key="access-token",
         value=f"Bearer {access_token}",
         max_age=cookie_max_age,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
-        samesite="lax",
+        secure=settings.IS_PRODUCTION,  # Use secure cookies in production (HTTPS)
+        samesite="none" if settings.IS_PRODUCTION else "lax",  # Allow cross-origin in production
+        domain=None,  # Let browser determine domain
     )
 
     logger.info(f"User {user_data.username} signed up successfully")
@@ -123,7 +127,6 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
             raise ValueError("Wrong issuer.")
 
         # Get user info from the token
-        google_user_id = idinfo["sub"]
         email = idinfo.get("email")
         name = idinfo.get("name")
         email_verified = idinfo.get("email_verified", False)
@@ -163,13 +166,15 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
 
         # Set the cookie
         cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+
         response.set_cookie(
             key="access-token",
             value=f"Bearer {access_token}",
             max_age=cookie_max_age,
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax",
+            secure=settings.IS_PRODUCTION,  # Use secure cookies in production (HTTPS)
+            samesite="none" if settings.IS_PRODUCTION else "lax",  # Allow cross-origin in production
+            domain=None,  # Let browser determine domain
         )
 
         logger.info(f"Google authentication successful for user {username}")

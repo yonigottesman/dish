@@ -140,7 +140,7 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
 
         if not await get_user(db, username):
             user = UserInDB(
-                user_id=str(uuid.uuid4())[:8],
+                user_id=str(uuid.uuid4()),
                 username=username,
                 email=email,
                 full_name=name,

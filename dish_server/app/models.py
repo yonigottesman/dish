@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -42,3 +44,11 @@ class RecipeModel(BaseModel):
     link: str | None = None
     emoji: str | None = None
     language: str = "en"
+
+
+class RecipeMetadata(BaseModel):
+    dish_id: str
+    title: str
+    description: str
+    emoji: str | None = None
+    date_added: datetime | None = None

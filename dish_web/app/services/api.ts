@@ -13,6 +13,13 @@ export interface Recipe {
   language: string;
 }
 
+export interface RecipeMetadata {
+  dish_id: string;
+  title: string;
+  description: string;
+  emoji?: string;
+  date_added?: string;
+}
 // User interface
 export interface User {
   username: string;
@@ -36,7 +43,7 @@ export class ApiService {
   /**
    * Fetch all recipes from the backend
    */
-  static async getAllRecipes(): Promise<Recipe[]> {
+  static async getAllRecipes(): Promise<RecipeMetadata[]> {
     try {
       const url = buildApiUrl(API_CONFIG.ENDPOINTS.ALL_DISHES);
       console.log(`Fetching all recipes from: ${url}`); // Debug log
@@ -57,7 +64,7 @@ export class ApiService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const recipes: Recipe[] = await response.json();
+      const recipes: RecipeMetadata[] = await response.json();
       console.log(`Successfully fetched ${recipes.length} recipes`); // Debug log
       return recipes;
     } catch (error) {

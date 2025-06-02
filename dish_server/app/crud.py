@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 from google.cloud import firestore
 from google.cloud.firestore import AsyncClient
 
-from app.models import RecipeModel, User, UserInDB
+from app.models import RecipeMetadata, RecipeModel, User, UserInDB
 from app.security import verify_password
 
 
@@ -44,6 +46,12 @@ async def get_recipes(db: AsyncClient, user: User) -> list[RecipeModel]:
     return [RecipeModel(**i.to_dict()) for i in recipes]
 
 
+async def get_recipes_metadata(db: AsyncClient, user: User) -> list[RecipeMetadata]:
+    user_ref = db.collection("users").document(user.username)
+    recipes = await user_ref.collection("recipes_metadata").get()
+    return [RecipeMetadata(**i.to_dict()) for i in recipes]
+
+
 async def get_recipe(db: AsyncClient, user: User, recipe_id: str) -> RecipeModel:
     user_ref = db.collection("users").document(user.username)
     snapshot = await user_ref.collection("recipes").document(recipe_id).get()
@@ -51,10 +59,45 @@ async def get_recipe(db: AsyncClient, user: User, recipe_id: str) -> RecipeModel
 
 
 async def insert_recipe(db: AsyncClient, user: User, recipe: RecipeModel):
+    transaction = db.transaction()
+
+    @firestore.async_transactional
+    async def _insert_new_recipe(transaction, user_ref, recipe: RecipeModel, metadata: RecipeMetadata):
+        transaction.set(user_ref.collection("recipes").document(recipe.dish_id), recipe.model_dump())
+        transaction.set(
+            user_ref.collection("recipes_metadata").document(recipe.dish_id),
+            metadata.model_dump(),
+        )
+
+    metadata = RecipeMetadata(
+        dish_id=recipe.dish_id,
+        title=recipe.title,
+        description=recipe.description,
+        emoji=recipe.emoji,
+        date_added=datetime.now(timezone.utc),
+    )
+
     user_ref = db.collection("users").document(user.username)
-    await user_ref.collection("recipes").document(recipe.dish_id).set(recipe.model_dump())
+    await _insert_new_recipe(transaction, user_ref, recipe, metadata)
 
 
 async def update_recipe(db: AsyncClient, user: User, recipe: RecipeModel):
+    transaction = db.transaction()
+
+    @firestore.async_transactional
+    async def _update_recipe(transaction, user_ref, recipe: RecipeModel, metadata: RecipeMetadata):
+        transaction.set(user_ref.collection("recipes").document(recipe.dish_id), recipe.model_dump(exclude_none=True))
+        transaction.set(
+            user_ref.collection("recipes_metadata").document(recipe.dish_id),
+            metadata.model_dump(exclude_none=True),
+            merge=True,
+        )
+
+    metadata = RecipeMetadata(
+        dish_id=recipe.dish_id,
+        title=recipe.title,
+        description=recipe.description,
+        emoji=recipe.emoji,
+    )
     user_ref = db.collection("users").document(user.username)
-    await user_ref.collection("recipes").document(recipe.dish_id).set(recipe.model_dump(), merge=False)
+    await _update_recipe(transaction, user_ref, recipe, metadata)

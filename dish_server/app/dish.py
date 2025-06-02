@@ -14,7 +14,7 @@ from pillow_heif import register_heif_opener
 from pydantic import BaseModel, Field
 
 from app.config import settings
-from app.crud import get_recipe, get_recipes, insert_recipe, update_recipe
+from app.crud import get_recipe, get_recipes_metadata, insert_recipe, update_recipe
 from app.dependencies import (
     CurrentUser,
     DocumentaiClientDep,
@@ -34,7 +34,7 @@ register_heif_opener()
 
 @router.get("/all_dishes")
 async def get_all_dishes(current_user: CurrentUser, db: SessionDep):
-    recipes = await get_recipes(db, current_user)
+    recipes = await get_recipes_metadata(db, current_user)
     return [recipe.model_dump() for recipe in recipes]
 
 

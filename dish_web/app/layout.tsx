@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dish - Recipe Manager",
+  title: "Dish",
   description: "Save and manage your favorite recipes",
 };
 

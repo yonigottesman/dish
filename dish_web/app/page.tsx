@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
-import { ApiService, Recipe } from './services/api';
+import { ApiService, Recipe, RecipeMetadata } from './services/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
@@ -484,7 +484,7 @@ Modal.displayName = 'Modal';
 
 export default function Home() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<RecipeMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -495,6 +495,19 @@ export default function Home() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const router = useRouter();
+
+  // Sort recipes by date_added (newest first), handling null dates
+  const sortedRecipes = useMemo(() => {
+    return [...recipes].sort((a, b) => {
+      // Handle null dates - put them at the end
+      if (!a.date_added && !b.date_added) return 0;
+      if (!a.date_added) return 1;
+      if (!b.date_added) return -1;
+      
+      // Sort by date (newest first)
+      return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
+    });
+  }, [recipes]);
 
   useEffect(() => {
     const fetchRecipes = async () => {
@@ -719,7 +732,7 @@ export default function Home() {
             flexDirection: 'column',
             gap: '1px'
           }}>
-            {recipes.map((recipe) => (
+            {sortedRecipes.map((recipe) => (
               <Link
                 key={recipe.dish_id}
                 href={`/recipe/${recipe.dish_id}`}

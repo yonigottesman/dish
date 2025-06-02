@@ -14,6 +14,7 @@ from pillow_heif import register_heif_opener
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.crud import delete_recipe as crud_delete_recipe
 from app.crud import get_recipe, get_recipes_metadata, insert_recipe, update_recipe
 from app.dependencies import (
     CurrentUser,
@@ -272,6 +273,33 @@ async def get_image(
     blob_path = f"{user.user_id}/{image_id}"
     blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
     return Response(content=blob.download_as_bytes(), media_type="image/jpeg")
+
+
+@router.put("/delete/{dish_id}")
+async def delete_recipe(
+    dish_id: str,
+    current_user: CurrentUser,
+    db: SessionDep,
+    storage_client: StorageClientDep,
+):
+    # Get the recipe to access its image_ids
+    recipe = await get_recipe(db, current_user, dish_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Delete all associated images from GCS
+    if recipe.image_ids:
+        for image_id in recipe.image_ids:
+            try:
+                delete_image_from_gcs(image_id, current_user, storage_client)
+            except Exception:
+                # Continue deleting other images even if one fails
+                pass
+
+    # Delete the recipe and metadata from the database
+    await crud_delete_recipe(db, current_user, dish_id)
+
+    return {"message": "Recipe deleted successfully"}
 
 
 @router.put("/save_edit/{dish_id}")

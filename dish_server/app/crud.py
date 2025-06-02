@@ -101,3 +101,17 @@ async def update_recipe(db: AsyncClient, user: User, recipe: RecipeModel):
     )
     user_ref = db.collection("users").document(user.username)
     await _update_recipe(transaction, user_ref, recipe, metadata)
+
+
+async def delete_recipe(db: AsyncClient, user: User, recipe_id: str):
+    transaction = db.transaction()
+
+    @firestore.async_transactional
+    async def _delete_recipe(transaction, user_ref, recipe_id: str):
+        # Delete the recipe document
+        transaction.delete(user_ref.collection("recipes").document(recipe_id))
+        # Delete the recipe metadata document
+        transaction.delete(user_ref.collection("recipes_metadata").document(recipe_id))
+
+    user_ref = db.collection("users").document(user.username)
+    await _delete_recipe(transaction, user_ref, recipe_id)

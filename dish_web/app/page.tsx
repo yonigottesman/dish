@@ -527,7 +527,8 @@ export default function Home() {
           // Auth error handled by ApiService redirecting to login
           setError(null);
         } else {
-          setError('Failed to load recipes. Please try again later.');
+          // setError('Failed to load recipes. Please try again later.');
+          setError(null);
         }
       } finally {
         setLoading(false);

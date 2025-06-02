@@ -141,6 +141,7 @@ export default function RecipePage() {
   const [checkedInstructions, setCheckedInstructions] = useState<Set<number>>(new Set());
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Add states for image upload
   const [newImages, setNewImages] = useState<File[]>([]);
@@ -198,6 +199,29 @@ export default function RecipePage() {
       alert('Failed to save recipe. Please try again.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!recipe) return;
+
+    // Show confirmation dialog
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete "${recipe.title}"? This action cannot be undone.`
+    );
+
+    if (!isConfirmed) return;
+
+    try {
+      setIsDeleting(true);
+      await ApiService.deleteRecipe(recipeId);
+      // Redirect to home page after successful deletion
+      window.location.href = '/';
+    } catch (err) {
+      console.error('Failed to delete recipe:', err);
+      alert('Failed to delete recipe. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1109,6 +1133,47 @@ export default function RecipePage() {
                   }} />
                 )}
                 {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isSaving || isDeleting}
+                style={{
+                  padding: '8px 16px',
+                  background: isDeleting ? '#ccc' : '#e74c3c',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: (isSaving || isDeleting) ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  marginLeft: 'auto',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  if (!isSaving && !isDeleting) {
+                    e.currentTarget.style.backgroundColor = '#c0392b';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (!isSaving && !isDeleting) {
+                    e.currentTarget.style.backgroundColor = '#e74c3c';
+                  }
+                }}
+              >
+                {isDeleting && (
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    border: '2px solid transparent',
+                    borderTop: '2px solid white',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                  }} />
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete Recipe'}
               </button>
             </>
           )}

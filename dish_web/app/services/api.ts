@@ -269,6 +269,38 @@ export class ApiService {
   }
 
   /**
+   * Delete a recipe
+   */
+  static async deleteRecipe(dishId: string): Promise<void> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.DELETE_RECIPE, dishId);
+      console.log(`Deleting recipe: ${url}`); // Debug log
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        ...this.defaultOptions,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
+          // Handle unauthorized - redirect to login
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      console.log(`Successfully deleted recipe with ID: ${dishId}`); // Debug log
+    } catch (error) {
+      console.error(`Error deleting recipe with ID ${dishId}:`, error);
+      console.error(`URL attempted: ${buildApiUrl(API_CONFIG.ENDPOINTS.DELETE_RECIPE, dishId)}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get current user info
    */
   static async getCurrentUser(): Promise<User | null> {

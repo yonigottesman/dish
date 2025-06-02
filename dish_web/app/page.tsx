@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
+import { processImageOrientation, rotateImage90 } from './utils/imageUtils';
 
 // Reusable Spinner Component
 const Spinner = () => (
@@ -71,7 +72,8 @@ const Modal = memo(({
   handleAddFromLink, 
   handleAddFromText, 
   handleAddFromImage,
-  handleImageSelect 
+  handleImageSelect,
+  handleRotateImage
 }: {
   showModal: boolean;
   closeModal: () => void;
@@ -90,6 +92,7 @@ const Modal = memo(({
   handleAddFromText: () => void;
   handleAddFromImage: () => void;
   handleImageSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRotateImage: () => void;
 }) => {
   if (!showModal) return null;
 
@@ -380,7 +383,7 @@ const Modal = memo(({
                   e.currentTarget.style.borderColor = '#e9e9e7';
                   e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
                 }}
-                onDrop={(e) => {
+                onDrop={async (e) => {
                   e.preventDefault();
                   e.currentTarget.style.borderColor = '#e9e9e7';
                   e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
@@ -388,9 +391,20 @@ const Modal = memo(({
                   const files = Array.from(e.dataTransfer.files);
                   const imageFile = files.find(file => file.type.startsWith('image/'));
                   if (imageFile) {
-                    setSelectedImage(imageFile);
-                    const previewUrl = URL.createObjectURL(imageFile);
-                    setImagePreview(previewUrl);
+                    try {
+                      console.log('Processing dropped image...');
+                      // Process the image orientation
+                      const processedFile = await processImageOrientation(imageFile);
+                      setSelectedImage(processedFile);
+                      const previewUrl = URL.createObjectURL(processedFile);
+                      setImagePreview(previewUrl);
+                    } catch (error) {
+                      console.error('Error processing dropped image:', error);
+                      // Fallback to original file if processing fails
+                      setSelectedImage(imageFile);
+                      const previewUrl = URL.createObjectURL(imageFile);
+                      setImagePreview(previewUrl);
+                    }
                   }
                 }}
                 >
@@ -439,10 +453,38 @@ const Modal = memo(({
                         {selectedImage?.name}
                       </div>
                       <div style={{
-                        fontSize: '10px',
-                        color: '#999',
+                        display: 'flex',
+                        gap: '8px',
+                        alignItems: 'center',
+                        marginTop: '4px'
                       }}>
-                        Click to change image
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRotateImage();
+                          }}
+                          style={{
+                            padding: '2px 6px',
+                            background: '#37352f',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '3px',
+                            fontSize: '10px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                          disabled={isSubmitting}
+                        >
+                          🔄 Rotate
+                        </button>
+                        <div style={{
+                          fontSize: '10px',
+                          color: '#999',
+                        }}>
+                          Click to change
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -608,7 +650,10 @@ export default function Home() {
     
     try {
       setIsSubmitting(true);
-      const newRecipe = await ApiService.addDishFromImage(selectedImage);
+      console.log('Processing image before upload...');
+      // Process the image orientation before uploading
+      const processedImage = await processImageOrientation(selectedImage);
+      const newRecipe = await ApiService.addDishFromImage(processedImage);
       closeModal();
       router.push(`/recipe/${newRecipe.dish_id}`);
     } catch (err) {
@@ -619,15 +664,41 @@ export default function Home() {
     }
   }, [selectedImage, router]);
 
-  const handleImageSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setSelectedImage(file);
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      setImagePreview(previewUrl);
+      try {
+        console.log('Processing selected image...');
+        // Process the image orientation for preview
+        const processedFile = await processImageOrientation(file);
+        setSelectedImage(processedFile);
+        // Create preview URL from processed file
+        const previewUrl = URL.createObjectURL(processedFile);
+        setImagePreview(previewUrl);
+      } catch (error) {
+        console.error('Error processing image:', error);
+        // Fallback to original file if processing fails
+        setSelectedImage(file);
+        const previewUrl = URL.createObjectURL(file);
+        setImagePreview(previewUrl);
+      }
     }
   }, []);
+
+  const handleRotateImage = useCallback(async () => {
+    if (!selectedImage) return;
+    
+    try {
+      console.log('Manually rotating image...');
+      const rotatedImage = await rotateImage90(selectedImage);
+      setSelectedImage(rotatedImage);
+      // Update preview
+      const previewUrl = URL.createObjectURL(rotatedImage);
+      setImagePreview(previewUrl);
+    } catch (error) {
+      console.error('Error rotating image:', error);
+    }
+  }, [selectedImage]);
 
   const closeModal = useCallback(() => {
     setShowModal(false);
@@ -829,6 +900,7 @@ export default function Home() {
         handleAddFromText={handleAddFromText}
         handleAddFromImage={handleAddFromImage}
         handleImageSelect={handleImageSelect}
+        handleRotateImage={handleRotateImage}
       />
     </div>
     </ProtectedRoute>

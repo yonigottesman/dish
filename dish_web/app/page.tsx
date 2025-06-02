@@ -105,15 +105,18 @@ const Modal = memo(({
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
+      padding: '16px',
     }}>
       <div style={{
         backgroundColor: 'white',
         borderRadius: '8px',
-        width: '90%',
+        width: '100%',
         maxWidth: '500px',
-        maxHeight: '80vh',
+        maxHeight: '90vh',
         overflow: 'hidden',
         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {/* Modal Header */}
         <div style={{
@@ -122,6 +125,7 @@ const Modal = memo(({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexShrink: 0,
         }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Add New Recipe</h3>
           <button
@@ -148,6 +152,7 @@ const Modal = memo(({
         <div style={{
           display: 'flex',
           borderBottom: '1px solid #e9e9e7',
+          flexShrink: 0,
         }}>
           {(['text', 'link', 'image'] as const).map((tab) => (
             <button
@@ -172,16 +177,18 @@ const Modal = memo(({
 
         {/* Tab Content */}
         <div style={{ 
-          padding: '20px',
-          height: '280px',
+          padding: '16px 20px 20px',
+          flex: 1,
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          minHeight: 0,
         }}>
           {activeTab === 'text' && (
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%' 
+              height: '100%',
+              minHeight: '220px',
             }}>
               <label style={{
                 display: 'block',
@@ -189,12 +196,14 @@ const Modal = memo(({
                 fontSize: '14px',
                 fontWeight: '500',
                 color: '#37352f',
+                flexShrink: 0,
               }}>
                 Recipe Text
               </label>
               <div style={{ 
-                height: '180px', // Fixed height container
+                flex: 1,
                 marginBottom: '16px',
+                minHeight: '100px',
               }}>
                 <textarea
                   value={textInput}
@@ -202,7 +211,7 @@ const Modal = memo(({
                   placeholder="Paste your recipe text here..."
                   style={{
                     width: '100%',
-                    height: '100%', // Fill the container
+                    height: '100%',
                     padding: '12px',
                     border: '1px solid #e9e9e7',
                     borderRadius: '4px',
@@ -215,7 +224,13 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+              <div style={{ 
+                display: 'flex', 
+                gap: '12px', 
+                justifyContent: 'flex-end',
+                flexShrink: 0,
+                paddingTop: '8px',
+              }}>
                 <button
                   onClick={closeModal}
                   style={{
@@ -245,7 +260,8 @@ const Modal = memo(({
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%' 
+              height: '100%',
+              minHeight: '220px',
             }}>
               <label style={{
                 display: 'block',
@@ -253,14 +269,16 @@ const Modal = memo(({
                 fontSize: '14px',
                 fontWeight: '500',
                 color: '#37352f',
+                flexShrink: 0,
               }}>
                 Recipe URL
               </label>
               <div style={{ 
-                height: '180px', // Fixed height container - same as text tab
+                flex: 1,
                 marginBottom: '16px',
                 display: 'flex',
                 flexDirection: 'column',
+                minHeight: '100px',
               }}>
                 <input
                   type="url"
@@ -279,7 +297,13 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+              <div style={{ 
+                display: 'flex', 
+                gap: '12px', 
+                justifyContent: 'flex-end',
+                flexShrink: 0,
+                paddingTop: '8px',
+              }}>
                 <button
                   onClick={closeModal}
                   style={{
@@ -309,7 +333,8 @@ const Modal = memo(({
             <div style={{ 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%'
+              height: '100%',
+              minHeight: '220px',
             }}>
               <label style={{
                 display: 'block',
@@ -317,13 +342,15 @@ const Modal = memo(({
                 fontSize: '14px',
                 fontWeight: '500',
                 color: '#37352f',
+                flexShrink: 0,
               }}>
                 Recipe Image
               </label>
               
               <div style={{ 
-                height: '180px', // Fixed height container - same as other tabs
+                flex: 1,
                 marginBottom: '16px',
+                minHeight: '100px',
               }}>
                 {/* File Upload Area */}
                 <div style={{
@@ -338,9 +365,9 @@ const Modal = memo(({
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: '100%', // Fill the container
+                  height: '100%',
                   boxSizing: 'border-box',
-                  overflow: 'hidden', // Prevent content from overflowing
+                  overflow: 'hidden',
                 }}
                 onClick={() => document.getElementById('image-upload')?.click()}
                 onDragOver={(e) => {
@@ -449,7 +476,13 @@ const Modal = memo(({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: 'auto' }}>
+              <div style={{ 
+                display: 'flex', 
+                gap: '12px', 
+                justifyContent: 'flex-end',
+                flexShrink: 0,
+                paddingTop: '8px',
+              }}>
                 <button
                   onClick={closeModal}
                   style={{
@@ -719,13 +752,7 @@ export default function Home() {
                 Add
               </button>
             </div>
-            <p style={{ 
-              fontSize: '16px', 
-              color: '#787774',
-              margin: '0'
-            }}>
-              A collection of recipes
-            </p>
+           
           </div>
 
           <div style={{ 

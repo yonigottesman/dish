@@ -19,22 +19,25 @@ export default function Navbar() {
         alignItems: 'center', 
         justifyContent: 'space-between' 
       }}>
-        <Link
-          href="/"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '8px 16px',
-            background: '#37352f',
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '3px',
-            fontSize: '14px',
-            fontWeight: '500'
-          }}
-        >
-          Home
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: '24px' }}>🍜</span>
+          <Link
+            href="/"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '8px 16px',
+              background: '#37352f',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '3px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+          >
+            Home
+          </Link>
+        </div>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {user?.username && (

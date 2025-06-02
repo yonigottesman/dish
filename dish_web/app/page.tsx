@@ -8,6 +8,8 @@ import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
 import { processImageOrientation, rotateImage90 } from './utils/imageUtils';
+import { useProgressBar } from './hooks/useTabProgressBar';
+import { ProgressBar } from './components/ProgressBar';
 
 // Reusable Spinner Component
 const Spinner = () => (
@@ -73,7 +75,13 @@ const Modal = memo(({
   handleAddFromText, 
   handleAddFromImage,
   handleImageSelect,
-  handleRotateImage
+  handleRotateImage,
+  uploadProgress,
+  isUploading,
+  linkProgress,
+  linkIsUploading,
+  textProgress,
+  textIsUploading
 }: {
   showModal: boolean;
   closeModal: () => void;
@@ -93,6 +101,12 @@ const Modal = memo(({
   handleAddFromImage: () => void;
   handleImageSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handleRotateImage: () => void;
+  uploadProgress: number;
+  isUploading: boolean;
+  linkProgress: number;
+  linkIsUploading: boolean;
+  textProgress: number;
+  textIsUploading: boolean;
 }) => {
   if (!showModal) return null;
 
@@ -227,6 +241,10 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
+              
+              {/* Progress Bar for Text */}
+              <ProgressBar progress={textProgress} isActive={textIsUploading} />
+
               <div style={{ 
                 display: 'flex', 
                 gap: '12px', 
@@ -300,6 +318,10 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
+              
+              {/* Progress Bar for Link */}
+              <ProgressBar progress={linkProgress} isActive={linkIsUploading} />
+
               <div style={{ 
                 display: 'flex', 
                 gap: '12px', 
@@ -518,6 +540,9 @@ const Modal = memo(({
                 </div>
               </div>
 
+              {/* Progress Bar */}
+              <ProgressBar progress={uploadProgress} isActive={isUploading} />
+
               <div style={{ 
                 display: 'flex', 
                 gap: '12px', 
@@ -569,7 +594,49 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isUploadingLink, setIsUploadingLink] = useState(false);
+  const [isUploadingText, setIsUploadingText] = useState(false);
   const router = useRouter();
+
+  // Progress bar hook for image uploads (20 seconds)
+  const { 
+    progress: imageProgress, 
+    isActive: imageIsActive, 
+    resetProgressBar: resetImageProgress 
+  } = useProgressBar({
+    duration: 16000, // 16 seconds
+    active: isUploadingImage,
+    onComplete: () => {
+      console.log('Image progress bar completed');
+    }
+  });
+
+  // Progress bar hook for link uploads (10 seconds)
+  const { 
+    progress: linkProgress, 
+    isActive: linkIsActive, 
+    resetProgressBar: resetLinkProgress 
+  } = useProgressBar({
+    duration: 10000, // 10 seconds
+    active: isUploadingLink,
+    onComplete: () => {
+      console.log('Link progress bar completed');
+    }
+  });
+
+  // Progress bar hook for text uploads (10 seconds)
+  const { 
+    progress: textProgress, 
+    isActive: textIsActive, 
+    resetProgressBar: resetTextProgress 
+  } = useProgressBar({
+    duration: 10000, // 10 seconds
+    active: isUploadingText,
+    onComplete: () => {
+      console.log('Text progress bar completed');
+    }
+  });
 
   // Sort recipes by date_added (newest first), handling null dates
   const sortedRecipes = useMemo(() => {
@@ -618,6 +685,7 @@ export default function Home() {
     
     try {
       setIsSubmitting(true);
+      setIsUploadingLink(true); // Start the link progress bar
       const newRecipe = await ApiService.addDishFromLink(linkInput.trim());
       closeModal();
       router.push(`/recipe/${newRecipe.dish_id}`);
@@ -626,6 +694,7 @@ export default function Home() {
       alert('Failed to add recipe from link. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setIsUploadingLink(false); // Stop the link progress bar
     }
   }, [linkInput, router]);
 
@@ -634,6 +703,7 @@ export default function Home() {
     
     try {
       setIsSubmitting(true);
+      setIsUploadingText(true); // Start the text progress bar
       const newRecipe = await ApiService.addDishFromText(textInput.trim());
       closeModal();
       router.push(`/recipe/${newRecipe.dish_id}`);
@@ -642,6 +712,7 @@ export default function Home() {
       alert('Failed to add recipe from text. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setIsUploadingText(false); // Stop the text progress bar
     }
   }, [textInput, router]);
 
@@ -650,6 +721,7 @@ export default function Home() {
     
     try {
       setIsSubmitting(true);
+      setIsUploadingImage(true); // Start the progress bar
       console.log('Processing image before upload...');
       // Process the image orientation before uploading
       const processedImage = await processImageOrientation(selectedImage);
@@ -661,6 +733,7 @@ export default function Home() {
       alert('Failed to add recipe from image. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setIsUploadingImage(false); // Stop the progress bar
     }
   }, [selectedImage, router]);
 
@@ -706,7 +779,14 @@ export default function Home() {
     setTextInput('');
     setSelectedImage(null);
     setImagePreview(null);
-  }, []);
+    setIsUploadingImage(false); // Clear image progress bar state
+    setIsUploadingLink(false); // Clear link progress bar state
+    setIsUploadingText(false); // Clear text progress bar state
+    // Reset all progress bars to ensure they start fresh next time
+    resetImageProgress();
+    resetLinkProgress();
+    resetTextProgress();
+  }, [resetImageProgress, resetLinkProgress, resetTextProgress]);
 
   if (loading) {
     return (
@@ -901,6 +981,12 @@ export default function Home() {
         handleAddFromImage={handleAddFromImage}
         handleImageSelect={handleImageSelect}
         handleRotateImage={handleRotateImage}
+        uploadProgress={imageProgress}
+        isUploading={imageIsActive}
+        linkProgress={linkProgress}
+        linkIsUploading={linkIsActive}
+        textProgress={textProgress}
+        textIsUploading={textIsActive}
       />
     </div>
     </ProtectedRoute>

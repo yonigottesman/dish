@@ -53,9 +53,48 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
             e.currentTarget.style.transform = 'scale(1)';
             e.currentTarget.style.boxShadow = 'none';
           }}
-          onClick={() => {
-            // Open image in new tab for full size viewing
-            window.open(ApiService.getImageUrl(imageId), '_blank');
+          onClick={async () => {
+            try {
+              // Fetch the image with authentication credentials
+              const response = await fetch(ApiService.getImageUrl(imageId), {
+                method: 'GET',
+                credentials: 'include',
+              });
+              
+              if (!response.ok) {
+                console.error('Failed to fetch image:', response.status);
+                return;
+              }
+              
+              // Get the image as blob and create object URL
+              const blob = await response.blob();
+              const imageUrl = URL.createObjectURL(blob);
+              
+              // Open in new tab
+              const newWindow = window.open();
+              if (newWindow) {
+                newWindow.document.write(`
+                  <html>
+                    <head>
+                      <title>Recipe Image</title>
+                      <style>
+                        body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+                        img { max-width: 100%; max-height: 100vh; object-fit: contain; border-radius: 8px; }
+                      </style>
+                    </head>
+                    <body>
+                      <img src="${imageUrl}" alt="Recipe image" />
+                    </body>
+                  </html>
+                `);
+                newWindow.document.close();
+                
+                // Clean up object URL after a delay
+                setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
+              }
+            } catch (error) {
+              console.error('Error opening image:', error);
+            }
           }}
         >
           <img

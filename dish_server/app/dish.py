@@ -77,8 +77,25 @@ async def add_dish_from_link(
     db: SessionDep,
     genai_client: GenaiClientDep,
 ):
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        "cache-control": "max-age=0",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Brave";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
+        "sec-fetch-user": "?1",
+        "sec-gpc": "1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    }
+
     async with aiohttp.ClientSession() as session:
-        async with session.get(link) as response:
+        async with session.get(link, headers=headers) as response:
             html_page = await response.text()
     soup = BeautifulSoup(html_page, "html.parser")
     text = soup.get_text()
@@ -86,7 +103,7 @@ async def add_dish_from_link(
     text = re.sub(r"\n+", "\n", text)
 
     genai_response = await genai_client.aio.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-pro",
         contents=(
             "Given the following text from a web page, extract the exact text of the "
             "ingredients and instructions for the recipe. Use the same language as in the text."
@@ -125,7 +142,7 @@ async def add_dish_from_text(
     genai_client: GenaiClientDep,
 ):
     genai_response = await genai_client.aio.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-pro",
         contents=(
             "Given the following text, extract the exact text of the "
             "ingredients and instructions for the recipe. Use the same language as in the text."
@@ -221,7 +238,7 @@ async def add_dish_from_image(
     image_bytes = output_buffer.getvalue()
 
     genai_response = await genai_client.aio.models.generate_content(
-        model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-pro",
         contents=[
             (
                 "Given the following text and image, extract the exact text of the "

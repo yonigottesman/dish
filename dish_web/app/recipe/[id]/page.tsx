@@ -7,7 +7,7 @@ import { ApiService, Recipe } from '../../services/api';
 import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
-import { processImageOrientation, processMultipleImages, rotateImage90 } from '../../utils/imageUtils';
+import { processImageOrientation, processMultipleImages } from '../../utils/imageUtils';
 
 // Component to display recipe images
 function RecipeImages({ imageIds, isEditing, onDeleteImage }: { 
@@ -358,32 +358,6 @@ export default function RecipePage() {
         const previews = files.map(file => URL.createObjectURL(file));
         setNewImagePreviews(prev => [...prev, ...previews]);
       }
-    }
-  };
-
-  const rotateNewImage = async (index: number) => {
-    try {
-      console.log(`Rotating image at index ${index}...`);
-      const originalFile = newImages[index];
-      const rotatedFile = await rotateImage90(originalFile);
-      
-      // Update the file in the array
-      setNewImages(prev => {
-        const updated = [...prev];
-        updated[index] = rotatedFile;
-        return updated;
-      });
-      
-      // Update the preview
-      setNewImagePreviews(prev => {
-        const updated = [...prev];
-        // Clean up old URL
-        URL.revokeObjectURL(updated[index]);
-        updated[index] = URL.createObjectURL(rotatedFile);
-        return updated;
-      });
-    } catch (error) {
-      console.error('Error rotating image:', error);
     }
   };
 
@@ -856,32 +830,6 @@ export default function RecipePage() {
                         display: 'block'
                       }}
                     />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        rotateNewImage(index);
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '4px',
-                        left: '4px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: '#37352f',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '10px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Rotate image"
-                    >
-                      🔄
-                    </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

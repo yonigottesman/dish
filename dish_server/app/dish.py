@@ -105,9 +105,11 @@ async def add_dish_from_link(
     genai_response = await genai_client.aio.models.generate_content(
         model="gemini-2.5-pro",
         contents=(
-            "Given the following text from a web page, extract the exact text of the "
-            "ingredients and instructions for the recipe. Use the same language as in the text."
-            "Write the ingredients and instructions in the same order and exact values as they are in the text."
+            "Extract complete recipe from webpage text. Preserve original language. "
+            "Capture ALL details: ingredients with precise measurements/quantities, "
+            "ALL instruction stages (prep/cooking/assembly/finishing), temperatures, "
+            "timing, techniques, serving sizes, tips. Include every step—no omissions. "
+            "Maintain original sequence and specificity."
             "<text>" + text + "</text>"
         ),
         config={
@@ -144,9 +146,11 @@ async def add_dish_from_text(
     genai_response = await genai_client.aio.models.generate_content(
         model="gemini-2.5-pro",
         contents=(
-            "Given the following text, extract the exact text of the "
-            "ingredients and instructions for the recipe. Use the same language as in the text."
-            "Write the ingredients and instructions in the same order and exact values as they are in the text."
+            "Extract complete recipe from text. Preserve original language. "
+            "Capture ALL details: ingredients with precise measurements/quantities, "
+            "ALL instruction stages (prep/cooking/assembly/finishing), temperatures, "
+            "timing, techniques, serving sizes, tips. Include every step—no omissions. "
+            "Maintain original sequence and specificity."
             "<text>" + text + "</text>"
         ),
         config={
@@ -241,10 +245,12 @@ async def add_dish_from_image(
         model="gemini-2.5-pro",
         contents=[
             (
-                "Given the following text and image, extract the exact text of the "
-                "ingredients and instructions for the recipe. Use the same language as in the text. "
-                "Write the ingredients and instructions in the same order and exact values "
-                "as they are in the text and image. "
+                "Extract complete recipe from OCR text and image. Cross-reference both sources for accuracy. "
+                "Preserve original language. Capture ALL details: ingredients with precise measurements/quantities "
+                "(verify from image if unclear in text), ALL instruction stages (prep/cooking/assembly/finishing), "
+                "temperatures, timing, techniques, serving sizes, tips, notes visible in image. "
+                "Include every step—no omissions. Maintain original sequence and specificity. "
+                "Use image to clarify ambiguous OCR text and capture visual details."
                 "<text>" + document.text + "</text>"
             ),
             types.Part.from_bytes(

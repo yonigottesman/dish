@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
-import { processImageOrientation, rotateImage90 } from './utils/imageUtils';
+import { processImageOrientation } from './utils/imageUtils';
 import { useProgressBar } from './hooks/useTabProgressBar';
 import { ProgressBar } from './components/ProgressBar';
 
@@ -75,7 +75,6 @@ const Modal = memo(({
   handleAddFromText, 
   handleAddFromImage,
   handleImageSelect,
-  handleRotateImage,
   uploadProgress,
   isUploading,
   linkProgress,
@@ -100,7 +99,6 @@ const Modal = memo(({
   handleAddFromText: () => void;
   handleAddFromImage: () => void;
   handleImageSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  handleRotateImage: () => void;
   uploadProgress: number;
   isUploading: boolean;
   linkProgress: number;
@@ -475,38 +473,11 @@ const Modal = memo(({
                         {selectedImage?.name}
                       </div>
                       <div style={{
-                        display: 'flex',
-                        gap: '8px',
-                        alignItems: 'center',
+                        fontSize: '10px',
+                        color: '#999',
                         marginTop: '4px'
                       }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRotateImage();
-                          }}
-                          style={{
-                            padding: '2px 6px',
-                            background: '#37352f',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            fontSize: '10px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '2px'
-                          }}
-                          disabled={isSubmitting}
-                        >
-                          🔄 Rotate
-                        </button>
-                        <div style={{
-                          fontSize: '10px',
-                          color: '#999',
-                        }}>
-                          Click to change
-                        </div>
+                        Click to change
                       </div>
                     </div>
                   ) : (
@@ -758,21 +729,6 @@ export default function Home() {
     }
   }, []);
 
-  const handleRotateImage = useCallback(async () => {
-    if (!selectedImage) return;
-    
-    try {
-      console.log('Manually rotating image...');
-      const rotatedImage = await rotateImage90(selectedImage);
-      setSelectedImage(rotatedImage);
-      // Update preview
-      const previewUrl = URL.createObjectURL(rotatedImage);
-      setImagePreview(previewUrl);
-    } catch (error) {
-      console.error('Error rotating image:', error);
-    }
-  }, [selectedImage]);
-
   const closeModal = useCallback(() => {
     setShowModal(false);
     setLinkInput('');
@@ -980,7 +936,6 @@ export default function Home() {
         handleAddFromText={handleAddFromText}
         handleAddFromImage={handleAddFromImage}
         handleImageSelect={handleImageSelect}
-        handleRotateImage={handleRotateImage}
         uploadProgress={imageProgress}
         isUploading={imageIsActive}
         linkProgress={linkProgress}

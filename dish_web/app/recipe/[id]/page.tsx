@@ -7,30 +7,21 @@ import { ApiService, Recipe } from '../../services/api';
 import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
-import { processImageOrientation, processMultipleImages } from '../../utils/imageUtils';
+import { processMultipleImages } from '../../utils/imageUtils';
 
-// Component to display recipe images
-function RecipeImages({ imageIds, isEditing, onDeleteImage }: { 
+function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
   imageIds: string[];
   isEditing?: boolean;
   onDeleteImage?: (imageId: string) => void;
 }) {
-  if (!imageIds || imageIds.length === 0) {
-    return null;
-  }
+  if (!imageIds || imageIds.length === 0) return null;
 
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: imageIds.length === 1 
-        ? '1fr' 
-        : imageIds.length === 2 
-          ? 'repeat(2, 1fr)' 
-          : 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '12px',
-      maxHeight: imageIds.length > 4 ? '400px' : 'auto',
-      overflowY: imageIds.length > 4 ? 'auto' : 'visible',
-      marginBottom: '32px'
+      gridTemplateColumns: imageIds.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+      gap: '8px',
+      marginBottom: '32px',
     }}>
       {imageIds.map((imageId, index) => (
         <div
@@ -39,58 +30,30 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
             position: 'relative',
             borderRadius: '6px',
             overflow: 'hidden',
-            border: '1px solid #e9e9e7',
-            background: '#ffffff',
-            aspectRatio: '16/9',
+            border: '1px solid #e5e5e5',
+            aspectRatio: '16/10',
             cursor: 'pointer',
-            transition: 'transform 0.2s ease, box-shadow 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'scale(1.02)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'scale(1)';
-            e.currentTarget.style.boxShadow = 'none';
           }}
           onClick={async () => {
             try {
-              // Fetch the image with authentication credentials
               const response = await fetch(ApiService.getImageUrl(imageId), {
                 method: 'GET',
                 credentials: 'include',
               });
-              
-              if (!response.ok) {
-                console.error('Failed to fetch image:', response.status);
-                return;
-              }
-              
-              // Get the image as blob and create object URL
+              if (!response.ok) return;
               const blob = await response.blob();
               const imageUrl = URL.createObjectURL(blob);
-              
-              // Open in new tab
               const newWindow = window.open();
               if (newWindow) {
                 newWindow.document.write(`
                   <html>
-                    <head>
-                      <title>Recipe Image</title>
-                      <style>
-                        body { margin: 0; padding: 20px; background: #000; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-                        img { max-width: 100%; max-height: 100vh; object-fit: contain; border-radius: 8px; }
-                      </style>
-                    </head>
-                    <body>
-                      <img src="${imageUrl}" alt="Recipe image" />
-                    </body>
+                    <head><title>Recipe Image</title>
+                    <style>body{margin:0;background:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh;}
+                    img{max-width:100%;max-height:100vh;object-fit:contain;}</style></head>
+                    <body><img src="${imageUrl}" /></body>
                   </html>
                 `);
                 newWindow.document.close();
-                
-                // Clean up object URL after a delay
-                setTimeout(() => URL.revokeObjectURL(imageUrl), 1000);
               }
             } catch (error) {
               console.error('Error opening image:', error);
@@ -100,39 +63,12 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
           <img
             src={ApiService.getImageUrl(imageId)}
             alt={`Recipe image ${index + 1}`}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block'
-            }}
-            onError={(e) => {
-              // Show placeholder for broken images
-              const target = e.currentTarget;
-              target.style.display = 'none';
-              const parent = target.parentElement;
-              if (parent) {
-                parent.innerHTML = `
-                  <div style="
-                    width: 100%; 
-                    height: 100%; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center; 
-                    background: #f0f0f0; 
-                    color: #999;
-                    font-size: 14px;
-                  ">
-                    Image not available
-                  </div>
-                `;
-              }
-            }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           {isEditing && onDeleteImage && (
             <button
               onClick={(e) => {
-                e.stopPropagation(); // Prevent opening image when clicking delete
+                e.stopPropagation();
                 onDeleteImage(imageId);
               }}
               style={{
@@ -142,22 +78,11 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
                 width: '24px',
                 height: '24px',
                 borderRadius: '50%',
-                background: '#e74c3c',
-                color: 'white',
+                background: '#1a1a1a',
+                color: '#fff',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#c0392b';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#e74c3c';
               }}
             >
               ×
@@ -182,28 +107,20 @@ export default function RecipePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
-  // Add states for image upload
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
 
   const toggleIngredient = (index: number) => {
     const newChecked = new Set(checkedIngredients);
-    if (newChecked.has(index)) {
-      newChecked.delete(index);
-    } else {
-      newChecked.add(index);
-    }
+    if (newChecked.has(index)) newChecked.delete(index);
+    else newChecked.add(index);
     setCheckedIngredients(newChecked);
   };
 
   const toggleInstruction = (index: number) => {
     const newChecked = new Set(checkedInstructions);
-    if (newChecked.has(index)) {
-      newChecked.delete(index);
-    } else {
-      newChecked.add(index);
-    }
+    if (newChecked.has(index)) newChecked.delete(index);
+    else newChecked.add(index);
     setCheckedInstructions(newChecked);
   };
 
@@ -217,21 +134,18 @@ export default function RecipePage() {
   const handleCancel = () => {
     setEditedRecipe(null);
     setIsEditing(false);
-    // Clear new images when canceling
     setNewImages([]);
     setNewImagePreviews([]);
   };
 
   const handleSave = async () => {
     if (!editedRecipe || !recipe) return;
-
     try {
       setIsSaving(true);
       const savedRecipe = await ApiService.saveEditedRecipe(recipeId, editedRecipe, recipe, newImages);
       setRecipe(savedRecipe);
       setEditedRecipe(null);
       setIsEditing(false);
-      // Clear new images after successful save
       setNewImages([]);
       setNewImagePreviews([]);
     } catch (err) {
@@ -244,18 +158,11 @@ export default function RecipePage() {
 
   const handleDelete = async () => {
     if (!recipe) return;
-
-    // Show confirmation dialog
-    const isConfirmed = window.confirm(
-      `Are you sure you want to delete "${recipe.title}"? This action cannot be undone.`
-    );
-
+    const isConfirmed = window.confirm(`Delete "${recipe.title}"? This cannot be undone.`);
     if (!isConfirmed) return;
-
     try {
       setIsDeleting(true);
       await ApiService.deleteRecipe(recipeId);
-      // Redirect to home page after successful deletion
       window.location.href = '/';
     } catch (err) {
       console.error('Failed to delete recipe:', err);
@@ -266,94 +173,56 @@ export default function RecipePage() {
   };
 
   const updateEditedField = (field: keyof Recipe, value: any) => {
-    if (editedRecipe) {
-      setEditedRecipe({ ...editedRecipe, [field]: value });
-    }
+    if (editedRecipe) setEditedRecipe({ ...editedRecipe, [field]: value });
   };
 
   const addIngredient = () => {
-    if (editedRecipe) {
-      setEditedRecipe({
-        ...editedRecipe,
-        ingredients: [...editedRecipe.ingredients, '']
-      });
-    }
+    if (editedRecipe) setEditedRecipe({ ...editedRecipe, ingredients: [...editedRecipe.ingredients, ''] });
   };
 
   const removeIngredient = (index: number) => {
-    if (editedRecipe) {
-      setEditedRecipe({
-        ...editedRecipe,
-        ingredients: editedRecipe.ingredients.filter((_, i) => i !== index)
-      });
-    }
+    if (editedRecipe) setEditedRecipe({ ...editedRecipe, ingredients: editedRecipe.ingredients.filter((_, i) => i !== index) });
   };
 
   const updateIngredient = (index: number, value: string) => {
     if (editedRecipe) {
       const newIngredients = [...editedRecipe.ingredients];
       newIngredients[index] = value;
-      setEditedRecipe({
-        ...editedRecipe,
-        ingredients: newIngredients
-      });
+      setEditedRecipe({ ...editedRecipe, ingredients: newIngredients });
     }
   };
 
   const addInstruction = () => {
-    if (editedRecipe) {
-      setEditedRecipe({
-        ...editedRecipe,
-        instructions: [...editedRecipe.instructions, '']
-      });
-    }
+    if (editedRecipe) setEditedRecipe({ ...editedRecipe, instructions: [...editedRecipe.instructions, ''] });
   };
 
   const removeInstruction = (index: number) => {
-    if (editedRecipe) {
-      setEditedRecipe({
-        ...editedRecipe,
-        instructions: editedRecipe.instructions.filter((_, i) => i !== index)
-      });
-    }
+    if (editedRecipe) setEditedRecipe({ ...editedRecipe, instructions: editedRecipe.instructions.filter((_, i) => i !== index) });
   };
 
   const updateInstruction = (index: number, value: string) => {
     if (editedRecipe) {
       const newInstructions = [...editedRecipe.instructions];
       newInstructions[index] = value;
-      setEditedRecipe({
-        ...editedRecipe,
-        instructions: newInstructions
-      });
+      setEditedRecipe({ ...editedRecipe, instructions: newInstructions });
     }
   };
 
   const removeImage = (imageId: string) => {
     if (editedRecipe && editedRecipe.image_ids) {
-      setEditedRecipe({
-        ...editedRecipe,
-        image_ids: editedRecipe.image_ids.filter(id => id !== imageId)
-      });
+      setEditedRecipe({ ...editedRecipe, image_ids: editedRecipe.image_ids.filter(id => id !== imageId) });
     }
   };
 
-  // Add function to handle new image uploads
   const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
       try {
-        console.log('Processing uploaded images...');
-        // Process all images for orientation
         const processedFiles = await processMultipleImages(files);
         setNewImages(prev => [...prev, ...processedFiles]);
-        
-        // Create preview URLs from processed files
         const previews = processedFiles.map(file => URL.createObjectURL(file));
         setNewImagePreviews(prev => [...prev, ...previews]);
-      } catch (error) {
-        console.error('Error processing images:', error);
-        // Fallback to original files if processing fails
+      } catch {
         setNewImages(prev => [...prev, ...files]);
         const previews = files.map(file => URL.createObjectURL(file));
         setNewImagePreviews(prev => [...prev, ...previews]);
@@ -364,7 +233,6 @@ export default function RecipePage() {
   const removeNewImage = (index: number) => {
     setNewImages(prev => prev.filter((_, i) => i !== index));
     setNewImagePreviews(prev => {
-      // Clean up the URL object
       URL.revokeObjectURL(prev[index]);
       return prev.filter((_, i) => i !== index);
     });
@@ -379,879 +247,381 @@ export default function RecipePage() {
         setError(null);
       } catch (err) {
         console.error('Failed to fetch recipe:', err);
-        setError('Failed to load recipe. Please try again later.');
+        setError('Failed to load recipe.');
       } finally {
         setLoading(false);
       }
     };
-
-    if (recipeId) {
-      fetchRecipe();
-    }
+    if (recipeId) fetchRecipe();
   }, [recipeId]);
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        padding: '40px 20px',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '18px', 
-            color: '#787774',
-            marginBottom: '16px'
-          }}>
-            Loading recipe...
-          </div>
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
+        <Navbar />
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '60px 20px', textAlign: 'center', color: '#999', fontSize: '14px' }}>
+          Loading...
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !recipe) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
-        padding: '40px 20px',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            fontSize: '18px', 
-            color: '#e74c3c',
-            marginBottom: '16px'
-          }}>
-            {error}
-          </div>
-          <Link 
-            href="/"
-            style={{
-              display: 'inline-block',
-              padding: '8px 16px',
-              background: '#37352f',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '3px',
-              fontSize: '14px'
-            }}
-          >
-            Back to Recipes
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  if (!recipe) {
-    return (
-      <div style={{ 
-        minHeight: '100vh', 
-        padding: '40px 20px',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center' }}>
-          <h1 style={{ fontSize: '24px', color: '#37352f', marginBottom: '16px' }}>Recipe Not Found</h1>
-          <p style={{ color: '#787774', marginBottom: '24px' }}>The recipe you're looking for doesn't exist.</p>
-          <Link 
-            href="/"
-            style={{
-              display: 'inline-block',
-              padding: '8px 16px',
-              background: '#37352f',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '3px',
-              fontSize: '14px'
-            }}
-          >
-            Back to Recipes
-          </Link>
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
+        <Navbar />
+        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '60px 20px', textAlign: 'center' }}>
+          <p style={{ color: '#999', fontSize: '14px', marginBottom: '16px' }}>{error || 'Recipe not found'}</p>
+          <Link href="/" style={{ color: '#1a1a1a', fontSize: '13px' }}>Back to recipes</Link>
         </div>
       </div>
     );
   }
 
   const displayRecipe = isEditing ? editedRecipe! : recipe;
-  
-  // Check if the recipe language is Hebrew for RTL text direction
   const isHebrew = displayRecipe.language === 'he';
+
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 10px',
+    border: '1px solid #e5e5e5',
+    borderRadius: '6px',
+    fontSize: '14px',
+    outline: 'none',
+    color: '#1a1a1a',
+  };
 
   return (
     <ProtectedRoute>
-      <div style={{
-        minHeight: '100vh',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-      <Navbar />
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
+        <Navbar />
 
-      <div style={{ padding: '40px 20px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-        
-        <div style={{ 
-          marginBottom: '32px',
-          background: isEditing ? '#fff3cd' : 'transparent',
-          border: isEditing ? '1px solid #ffeaa7' : 'none',
-          borderRadius: isEditing ? '6px' : '0',
-          padding: isEditing ? '16px' : '0'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '16px',
-            flexDirection: isHebrew ? 'row-reverse' : 'row'
-          }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
+          {/* Title */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexDirection: isHebrew ? 'row-reverse' : 'row' }}>
+              {isEditing ? (
+                <>
+                  <input
+                    type="text"
+                    value={displayRecipe.emoji || ''}
+                    onChange={(e) => updateEditedField('emoji', e.target.value)}
+                    placeholder="🍽️"
+                    style={{ ...inputStyle, width: '60px', textAlign: 'center', fontSize: '32px', padding: '8px' }}
+                  />
+                  <input
+                    type="text"
+                    value={displayRecipe.title}
+                    onChange={(e) => updateEditedField('title', e.target.value)}
+                    style={{ ...inputStyle, flex: 1, fontSize: '28px', fontWeight: '600', direction: isHebrew ? 'rtl' : 'ltr' }}
+                  />
+                </>
+              ) : (
+                <>
+                  {displayRecipe.emoji && <span style={{ fontSize: '32px' }}>{displayRecipe.emoji}</span>}
+                  <h1 style={{ fontSize: '32px', fontWeight: '600', color: '#1a1a1a', margin: 0, direction: isHebrew ? 'rtl' : 'ltr' }}>
+                    {displayRecipe.title}
+                  </h1>
+                </>
+              )}
+            </div>
+
             {isEditing ? (
-              <>
-                <input
-                  type="text"
-                  value={displayRecipe.emoji || ''}
-                  onChange={(e) => updateEditedField('emoji', e.target.value)}
-                  placeholder="🍽️"
-                  style={{
-                    fontSize: '32px',
-                    width: '50px',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    padding: '4px',
-                    textAlign: 'center'
-                  }}
-                />
-                <input
-                  type="text"
-                  value={displayRecipe.title}
-                  onChange={(e) => updateEditedField('title', e.target.value)}
-                  style={{
-                    fontSize: '32px',
-                    fontWeight: '600',
-                    color: '#37352f',
-                    margin: '0',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    padding: '8px',
-                    flex: 1,
-                    background: '#ffffff',
-                    direction: isHebrew ? 'rtl' : 'ltr',
-                    textAlign: isHebrew ? 'right' : 'left'
-                  }}
-                />
-              </>
+              <textarea
+                value={displayRecipe.description}
+                onChange={(e) => updateEditedField('description', e.target.value)}
+                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', direction: isHebrew ? 'rtl' : 'ltr' }}
+              />
             ) : (
-              <>
-                <span style={{ fontSize: '32px' }}>{displayRecipe.emoji || '🍽️'}</span>
-                <h1 style={{ 
-                  fontSize: '32px', 
-                  fontWeight: '600', 
-                  color: '#37352f',
-                  margin: '0',
-                  direction: isHebrew ? 'rtl' : 'ltr',
-                  textAlign: isHebrew ? 'right' : 'left'
-                }}>
-                  {displayRecipe.title}
-                </h1>
-              </>
+              <p style={{ fontSize: '16px', color: '#6b6b6b', margin: 0, lineHeight: '1.6', direction: isHebrew ? 'rtl' : 'ltr' }}>
+                {displayRecipe.description}
+              </p>
+            )}
+
+            {isEditing && (
+              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', color: '#6b6b6b' }}>Language:</span>
+                <select
+                  value={displayRecipe.language || 'en'}
+                  onChange={(e) => updateEditedField('language', e.target.value)}
+                  style={{ ...inputStyle, width: 'auto', padding: '6px 10px' }}
+                >
+                  <option value="en">English</option>
+                  <option value="he">Hebrew</option>
+                </select>
+              </div>
+            )}
+
+            {recipe.link && (
+              <div style={{ marginTop: '12px' }}>
+                {isEditing ? (
+                  <input
+                    type="url"
+                    value={displayRecipe.link || ''}
+                    onChange={(e) => updateEditedField('link', e.target.value)}
+                    placeholder="https://..."
+                    style={inputStyle}
+                  />
+                ) : (
+                  <a href={recipe.link} target="_blank" rel="noopener noreferrer" style={{ color: '#6b6b6b', fontSize: '13px' }}>
+                    Source link
+                  </a>
+                )}
+              </div>
             )}
           </div>
-          
-          {isEditing ? (
-            <textarea
-              value={displayRecipe.description}
-              onChange={(e) => updateEditedField('description', e.target.value)}
-              style={{
-                fontSize: '16px',
-                color: '#787774',
-                lineHeight: '1.6',
-                margin: '0',
-                width: '100%',
-                minHeight: '60px',
-                border: '1px solid #e9e9e7',
-                borderRadius: '4px',
-                padding: '8px',
-                resize: 'vertical',
-                background: '#ffffff',
-                direction: isHebrew ? 'rtl' : 'ltr',
-                textAlign: isHebrew ? 'right' : 'left'
-              }}
-            />
-          ) : (
-            <p style={{ 
-              fontSize: '16px', 
-              color: '#787774',
-              lineHeight: '1.6',
-              margin: '0',
-              direction: isHebrew ? 'rtl' : 'ltr',
-              textAlign: isHebrew ? 'right' : 'left'
-            }}>
-              {displayRecipe.description}
-            </p>
-          )}
 
-          {/* Language Selection - Only shown in edit mode */}
+          {/* Images */}
+          <RecipeImages imageIds={displayRecipe.image_ids || []} isEditing={isEditing} onDeleteImage={removeImage} />
+
+          {/* New Images Upload */}
           {isEditing && (
-            <div style={{
-              marginTop: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              flexDirection: isHebrew ? 'row-reverse' : 'row'
-            }}>
-              <label style={{
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#37352f',
-                minWidth: '70px'
-              }}>
-                Language:
-              </label>
-              <select
-                value={displayRecipe.language || 'en'}
-                onChange={(e) => updateEditedField('language', e.target.value)}
+            <div style={{ marginBottom: '32px' }}>
+              <div
                 style={{
-                  padding: '6px 8px',
-                  border: '1px solid #e9e9e7',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  background: '#ffffff',
+                  border: '1px dashed #e5e5e5',
+                  borderRadius: '6px',
+                  padding: '20px',
+                  textAlign: 'center',
                   cursor: 'pointer',
-                  minWidth: '120px'
+                }}
+                onClick={() => document.getElementById('edit-image-upload')?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                  if (files.length > 0) {
+                    try {
+                      const processedFiles = await processMultipleImages(files);
+                      setNewImages(prev => [...prev, ...processedFiles]);
+                      setNewImagePreviews(prev => [...prev, ...processedFiles.map(f => URL.createObjectURL(f))]);
+                    } catch {
+                      setNewImages(prev => [...prev, ...files]);
+                      setNewImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+                    }
+                  }
                 }}
               >
-                <option value="en">English</option>
-                <option value="he">עברית (Hebrew)</option>
-              </select>
-            </div>
-          )}
-          
-          {recipe.link && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px 16px',
-              background: '#f1f9ff',
-              border: '1px solid #d1e9ff',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span style={{ fontSize: '16px' }}>🔗</span>
-              {isEditing ? (
                 <input
-                  type="url"
-                  value={displayRecipe.link || ''}
-                  onChange={(e) => updateEditedField('link', e.target.value)}
-                  placeholder="https://example.com/recipe"
-                  style={{
-                    flex: 1,
-                    border: '1px solid #d1e9ff',
-                    borderRadius: '4px',
-                    padding: '4px 8px',
-                    fontSize: '14px'
-                  }}
+                  id="edit-image-upload"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
                 />
-              ) : (
-                <a
-                  href={recipe.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: '#0066cc',
-                    textDecoration: 'none',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.textDecoration = 'underline';
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.textDecoration = 'none';
-                  }}
-                >
-                  link
-                </a>
+                <div style={{ color: '#999', fontSize: '13px' }}>Drop images or click to upload</div>
+              </div>
+
+              {newImagePreviews.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
+                  {newImagePreviews.map((preview, index) => (
+                    <div key={index} style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: '1px solid #e5e5e5', aspectRatio: '1' }}>
+                      <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        onClick={() => removeNewImage(index)}
+                        style={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: '#1a1a1a',
+                          color: '#fff',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
-        </div>
 
-        {/* Display recipe images if they exist */}
-        <RecipeImages imageIds={displayRecipe.image_ids || []} isEditing={isEditing} onDeleteImage={removeImage} />
-
-        {/* Image Upload Section - Only show in edit mode */}
-        {isEditing && (
+          {/* Ingredients */}
           <div style={{ marginBottom: '32px' }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px'
-            }}>
-              <h3 style={{ 
-                fontSize: '18px', 
-                fontWeight: '600', 
-                color: '#37352f',
-                margin: '0'
-              }}>
-                Add New Images
-              </h3>
-            </div>
-            
-            {/* File Upload Area */}
-            <div style={{
-              border: '2px dashed #e9e9e7',
-              borderRadius: '8px',
-              padding: '20px',
-              textAlign: 'center',
-              cursor: 'pointer',
-              backgroundColor: newImages.length > 0 ? '#f7f6f3' : 'transparent',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minHeight: '120px',
-              marginBottom: '16px'
-            }}
-            onClick={() => document.getElementById('edit-image-upload')?.click()}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.currentTarget.style.borderColor = '#37352f';
-              e.currentTarget.style.backgroundColor = '#f7f6f3';
-            }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              e.currentTarget.style.borderColor = '#e9e9e7';
-              e.currentTarget.style.backgroundColor = newImages.length > 0 ? '#f7f6f3' : 'transparent';
-            }}
-            onDrop={async (e) => {
-              e.preventDefault();
-              e.currentTarget.style.borderColor = '#e9e9e7';
-              e.currentTarget.style.backgroundColor = newImages.length > 0 ? '#f7f6f3' : 'transparent';
-              
-              const files = Array.from(e.dataTransfer.files);
-              const imageFiles = files.filter(file => file.type.startsWith('image/'));
-              if (imageFiles.length > 0) {
-                try {
-                  console.log('Processing dropped images...');
-                  // Process all images for orientation
-                  const processedFiles = await processMultipleImages(imageFiles);
-                  setNewImages(prev => [...prev, ...processedFiles]);
-                  const previews = processedFiles.map(file => URL.createObjectURL(file));
-                  setNewImagePreviews(prev => [...prev, ...previews]);
-                } catch (error) {
-                  console.error('Error processing dropped images:', error);
-                  // Fallback to original files if processing fails
-                  setNewImages(prev => [...prev, ...imageFiles]);
-                  const previews = imageFiles.map(file => URL.createObjectURL(file));
-                  setNewImagePreviews(prev => [...prev, ...previews]);
-                }
-              }
-            }}
-            >
-              <input
-                id="edit-image-upload"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageSelect}
-                style={{ display: 'none' }}
-                disabled={isSaving}
-              />
-              
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '8px',
-              }}>
-                <div style={{
-                  fontSize: '24px',
-                  color: '#ccc',
-                }}>
-                  📸
-                </div>
-                <div style={{
-                  fontSize: '14px',
-                  color: '#666',
-                  fontWeight: '500',
-                }}>
-                  Upload New Images
-                </div>
-                <div style={{
-                  fontSize: '12px',
-                  color: '#999',
-                }}>
-                  Click or drag images here (multiple files supported)
-                </div>
-              </div>
-            </div>
-
-            {/* Preview new images */}
-            {newImages.length > 0 && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                gap: '12px',
-                marginBottom: '16px'
-              }}>
-                {newImagePreviews.map((preview, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      position: 'relative',
-                      borderRadius: '6px',
-                      overflow: 'hidden',
-                      border: '1px solid #e9e9e7',
-                      background: '#ffffff',
-                      aspectRatio: '16/9'
-                    }}
-                  >
-                    <img
-                      src={preview}
-                      alt={`New image ${index + 1}`}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        display: 'block'
-                      }}
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeNewImage(index);
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '4px',
-                        right: '4px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: '#e74c3c',
-                        color: 'white',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                      title="Remove image"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-          gap: '32px' 
-        }}>
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px'
-            }}>
-              <h2 style={{ 
-                fontSize: '18px', 
-                fontWeight: '600', 
-                color: '#37352f',
-                margin: '0'
-              }}>
-                Ingredients
-              </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>Ingredients</h2>
               {isEditing && (
-                <button
-                  onClick={addIngredient}
-                  style={{
-                    padding: '4px 8px',
-                    background: '#27ae60',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '3px',
-                    fontSize: '12px',
-                    cursor: 'pointer'
-                  }}
-                >
+                <button onClick={addIngredient} style={{ padding: '6px 12px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                   + Add
                 </button>
               )}
             </div>
-            <div style={{ 
-              background: isEditing ? '#e8f5e8' : '#f7f6f3', 
-              borderRadius: '3px', 
-              padding: '16px',
-              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7',
-              direction: isHebrew ? 'rtl' : 'ltr'
-            }}>
-              <ul style={{ 
-                listStyle: 'none', 
-                padding: '0', 
-                margin: '0' 
-              }}>
-                {displayRecipe.ingredients.map((ingredient, index) => (
-                  <li key={index} style={{ 
-                    padding: '8px 0', 
-                    borderBottom: index < displayRecipe.ingredients.length - 1 ? '1px solid #e9e9e7' : 'none',
-                    fontSize: '14px',
-                    color: '#37352f',
+            <div style={{ border: '1px solid #e5e5e5', borderRadius: '8px', overflow: 'hidden' }}>
+              {displayRecipe.ingredients.map((ingredient, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '12px 16px',
+                    borderBottom: index < displayRecipe.ingredients.length - 1 ? '1px solid #e5e5e5' : 'none',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    {!isEditing && (
+                    gap: '12px',
+                    direction: isHebrew ? 'rtl' : 'ltr',
+                  }}
+                >
+                  {isEditing ? (
+                    <>
+                      <input
+                        type="text"
+                        value={ingredient}
+                        onChange={(e) => updateIngredient(index, e.target.value)}
+                        style={{ ...inputStyle, flex: 1 }}
+                      />
+                      <button onClick={() => removeIngredient(index)} style={{ padding: '4px 10px', background: '#e5e5e5', color: '#1a1a1a', border: 'none', borderRadius: '4px', fontSize: '14px', cursor: 'pointer' }}>
+                        ×
+                      </button>
+                    </>
+                  ) : (
+                    <>
                       <input
                         type="checkbox"
                         checked={checkedIngredients.has(index)}
                         onChange={() => toggleIngredient(index)}
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          cursor: 'pointer',
-                          flexShrink: 0
-                        }}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                       />
-                    )}
-                    {isEditing ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                        <input
-                          type="text"
-                          value={ingredient}
-                          onChange={(e) => updateIngredient(index, e.target.value)}
-                          style={{
-                            flex: 1,
-                            border: '1px solid #e9e9e7',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '14px'
-                          }}
-                        />
-                        <button
-                          onClick={() => removeIngredient(index)}
-                          style={{
-                            padding: '2px 6px',
-                            background: '#e74c3c',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            fontSize: '12px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ 
-                        textDecoration: checkedIngredients.has(index) ? 'line-through' : 'none',
-                        opacity: checkedIngredients.has(index) ? 0.6 : 1,
-                        transition: 'all 0.2s ease'
-                      }}>
+                      <span style={{ fontSize: '15px', color: '#1a1a1a', opacity: checkedIngredients.has(index) ? 0.5 : 1, textDecoration: checkedIngredients.has(index) ? 'line-through' : 'none' }}>
                         {ingredient}
                       </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
-          <div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '16px'
-            }}>
-              <h2 style={{ 
-                fontSize: '18px', 
-                fontWeight: '600', 
-                color: '#37352f',
-                margin: '0'
-              }}>
-                Instructions
-              </h2>
+          {/* Instructions */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>Instructions</h2>
               {isEditing && (
-                <button
-                  onClick={addInstruction}
-                  style={{
-                    padding: '4px 8px',
-                    background: '#27ae60',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '3px',
-                    fontSize: '12px',
-                    cursor: 'pointer'
-                  }}
-                >
+                <button onClick={addInstruction} style={{ padding: '6px 12px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
                   + Add
                 </button>
               )}
             </div>
-            <div style={{ 
-              background: isEditing ? '#e8f5e8' : '#f7f6f3', 
-              borderRadius: '3px', 
-              padding: '16px',
-              border: isEditing ? '2px solid #27ae60' : '1px solid #e9e9e7',
-              direction: isHebrew ? 'rtl' : 'ltr'
-            }}>
-              <ol style={{ 
-                listStyle: 'none', 
-                padding: '0', 
-                margin: '0' 
-              }}>
-                {displayRecipe.instructions.map((instruction, index) => (
-                  <li key={index} style={{ 
-                    padding: '12px 0', 
-                    borderBottom: index < displayRecipe.instructions.length - 1 ? '1px solid #e9e9e7' : 'none',
+            <div style={{ border: '1px solid #e5e5e5', borderRadius: '8px', overflow: 'hidden' }}>
+              {displayRecipe.instructions.map((instruction, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '14px 16px',
+                    borderBottom: index < displayRecipe.instructions.length - 1 ? '1px solid #e5e5e5' : 'none',
                     display: 'flex',
                     alignItems: 'flex-start',
                     gap: '12px',
-                    fontSize: '14px',
-                    lineHeight: '1.5',
-                    color: '#37352f'
-                  }}>
-                    {!isEditing && (
+                    direction: isHebrew ? 'rtl' : 'ltr',
+                  }}
+                >
+                  {isEditing ? (
+                    <>
+                      <span style={{ fontSize: '14px', color: '#999', minWidth: '24px' }}>{index + 1}.</span>
+                      <textarea
+                        value={instruction}
+                        onChange={(e) => updateInstruction(index, e.target.value)}
+                        style={{ ...inputStyle, flex: 1, minHeight: '80px', resize: 'vertical' }}
+                      />
+                      <button onClick={() => removeInstruction(index)} style={{ padding: '4px 10px', background: '#e5e5e5', color: '#1a1a1a', border: 'none', borderRadius: '4px', fontSize: '14px', cursor: 'pointer' }}>
+                        ×
+                      </button>
+                    </>
+                  ) : (
+                    <>
                       <input
                         type="checkbox"
                         checked={checkedInstructions.has(index)}
                         onChange={() => toggleInstruction(index)}
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                          marginTop: '2px'
-                        }}
+                        style={{ width: '18px', height: '18px', cursor: 'pointer', marginTop: '3px' }}
                       />
-                    )}
-                    {isEditing ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-                        <textarea
-                          value={instruction}
-                          onChange={(e) => updateInstruction(index, e.target.value)}
-                          style={{
-                            flex: 1,
-                            border: '1px solid #e9e9e7',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '14px',
-                            minHeight: '40px',
-                            resize: 'vertical'
-                          }}
-                        />
-                        <button
-                          onClick={() => removeInstruction(index)}
-                          style={{
-                            padding: '2px 6px',
-                            background: '#e74c3c',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '3px',
-                            fontSize: '12px',
-                            cursor: 'pointer',
-                            alignSelf: 'flex-start'
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ) : (
-                      <span style={{ 
-                        textDecoration: checkedInstructions.has(index) ? 'line-through' : 'none',
-                        opacity: checkedInstructions.has(index) ? 0.6 : 1,
-                        transition: 'all 0.2s ease'
-                      }}>
+                      <span style={{ fontSize: '15px', color: '#1a1a1a', lineHeight: '1.6', opacity: checkedInstructions.has(index) ? 0.5 : 1, textDecoration: checkedInstructions.has(index) ? 'line-through' : 'none' }}>
                         {instruction}
                       </span>
-                    )}
-                  </li>
-                ))}
-              </ol>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Edit Controls - Bottom of recipe */}
-        <div style={{ 
-          marginTop: '40px',
-          padding: '20px',
-          borderTop: '1px solid #e9e9e7',
-          display: 'flex',
-          justifyContent: 'flex-start',
-          gap: '12px'
-        }}>
-          {!isEditing ? (
-            <button
-              onClick={handleEdit}
-              style={{
-                padding: '8px 16px',
-                background: '#e67e22',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                fontSize: '14px',
-                fontWeight: '500',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s ease'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = '#d35400';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = '#e67e22';
-              }}
-            >
-              Edit Recipe
-            </button>
-          ) : (
-            <>
+          {/* Actions */}
+          <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px' }}>
+            {!isEditing ? (
               <button
-                onClick={handleCancel}
-                disabled={isSaving}
+                onClick={handleEdit}
                 style={{
-                  padding: '8px 16px',
-                  background: '#95a5a6',
-                  color: 'white',
+                  padding: '10px 20px',
+                  background: '#1a1a1a',
+                  color: '#fff',
                   border: 'none',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: isSaving ? 'not-allowed' : 'pointer',
-                  opacity: isSaving ? 0.6 : 1,
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  if (!isSaving) {
-                    e.currentTarget.style.backgroundColor = '#7f8c8d';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!isSaving) {
-                    e.currentTarget.style.backgroundColor = '#95a5a6';
-                  }
+                  cursor: 'pointer',
                 }}
               >
-                Cancel
+                Edit Recipe
               </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                style={{
-                  padding: '8px 16px',
-                  background: isSaving ? '#ccc' : '#27ae60',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: isSaving ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  if (!isSaving) {
-                    e.currentTarget.style.backgroundColor = '#229954';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!isSaving) {
-                    e.currentTarget.style.backgroundColor = '#27ae60';
-                  }
-                }}
-              >
-                {isSaving && (
-                  <div style={{
-                    width: '12px',
-                    height: '12px',
-                    border: '2px solid transparent',
-                    borderTop: '2px solid white',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }} />
-                )}
-                {isSaving ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isSaving || isDeleting}
-                style={{
-                  padding: '8px 16px',
-                  background: isDeleting ? '#ccc' : '#e74c3c',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: (isSaving || isDeleting) ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  marginLeft: 'auto',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  if (!isSaving && !isDeleting) {
-                    e.currentTarget.style.backgroundColor = '#c0392b';
-                  }
-                }}
-                onMouseOut={(e) => {
-                  if (!isSaving && !isDeleting) {
-                    e.currentTarget.style.backgroundColor = '#e74c3c';
-                  }
-                }}
-              >
-                {isDeleting && (
-                  <div style={{
-                    width: '12px',
-                    height: '12px',
-                    border: '2px solid transparent',
-                    borderTop: '2px solid white',
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }} />
-                )}
-                {isDeleting ? 'Deleting...' : 'Delete Recipe'}
-              </button>
-            </>
-          )}
-        </div>
-
+            ) : (
+              <>
+                <button
+                  onClick={handleCancel}
+                  disabled={isSaving}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#fff',
+                    color: '#6b6b6b',
+                    border: '1px solid #e5e5e5',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    opacity: isSaving ? 0.5 : 1,
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#1a1a1a',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    opacity: isSaving ? 0.5 : 1,
+                  }}
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isSaving || isDeleting}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#fff',
+                    color: '#999',
+                    border: '1px solid #e5e5e5',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    marginLeft: 'auto',
+                    opacity: (isSaving || isDeleting) ? 0.5 : 1,
+                  }}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-      `}</style>
-    </div>
     </ProtectedRoute>
   );
-} 
+}

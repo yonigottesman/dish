@@ -8,52 +8,7 @@ import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
 import { processImageOrientation } from './utils/imageUtils';
 
-// Reusable Spinner Component
-const Spinner = () => (
-  <div style={{
-    width: '16px',
-    height: '16px',
-    border: '2px solid transparent',
-    borderTop: '2px solid white',
-    borderRadius: '50%',
-    animation: 'spin 0.5s linear infinite',
-  }} />
-);
-
-// Reusable Submit Button Component
-const SubmitButton = ({
-  onClick,
-  disabled,
-  children,
-  isSubmitting
-}: {
-  onClick: () => void;
-  disabled: boolean;
-  children: React.ReactNode;
-  isSubmitting: boolean;
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    style={{
-      padding: '8px 16px',
-      background: disabled ? '#ccc' : '#37352f',
-      color: 'white',
-      border: 'none',
-      borderRadius: '4px',
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      fontSize: '14px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-    }}
-  >
-    {isSubmitting && <Spinner />}
-    {isSubmitting ? 'Adding...' : children}
-  </button>
-);
-
-// Modal Component - memoized to prevent unnecessary re-renders
+// Modal Component
 const Modal = memo(({
   showModal,
   closeModal,
@@ -93,6 +48,8 @@ const Modal = memo(({
 }) => {
   if (!showModal) return null;
 
+  const tabs = ['text', 'link', 'image'] as const;
+
   return (
     <div style={{
       position: 'fixed',
@@ -100,48 +57,38 @@ const Modal = memo(({
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
-      padding: '16px',
+      padding: '20px',
     }}>
       <div style={{
-        backgroundColor: 'white',
+        backgroundColor: '#fff',
         borderRadius: '8px',
         width: '100%',
         maxWidth: '500px',
-        maxHeight: '90vh',
-        overflow: 'hidden',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.15)',
-        display: 'flex',
-        flexDirection: 'column',
+        border: '1px solid #e5e5e5',
       }}>
-        {/* Modal Header */}
+        {/* Header */}
         <div style={{
           padding: '20px',
-          borderBottom: '1px solid #e9e9e7',
+          borderBottom: '1px solid #e5e5e5',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          flexShrink: 0,
         }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Add New Recipe</h3>
+          <span style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a' }}>Add Recipe</span>
           <button
             onClick={closeModal}
             style={{
               background: 'none',
               border: 'none',
-              fontSize: '24px',
+              fontSize: '18px',
               cursor: 'pointer',
-              color: '#666',
-              padding: '0',
-              width: '30px',
-              height: '30px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              color: '#999',
+              padding: '4px 8px',
             }}
           >
             ×
@@ -151,10 +98,9 @@ const Modal = memo(({
         {/* Tabs */}
         <div style={{
           display: 'flex',
-          borderBottom: '1px solid #e9e9e7',
-          flexShrink: 0,
+          borderBottom: '1px solid #e5e5e5',
         }}>
-          {(['text', 'link', 'image'] as const).map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -162,12 +108,14 @@ const Modal = memo(({
                 flex: 1,
                 padding: '12px 16px',
                 border: 'none',
-                background: activeTab === tab ? '#f7f6f3' : 'transparent',
-                color: activeTab === tab ? '#37352f' : '#666',
+                background: 'transparent',
+                color: activeTab === tab ? '#1a1a1a' : '#999',
                 cursor: 'pointer',
                 fontSize: '14px',
                 fontWeight: activeTab === tab ? '500' : '400',
                 textTransform: 'capitalize',
+                borderBottom: activeTab === tab ? '2px solid #1a1a1a' : '2px solid transparent',
+                marginBottom: '-1px',
               }}
             >
               {tab}
@@ -175,350 +123,166 @@ const Modal = memo(({
           ))}
         </div>
 
-        {/* Tab Content */}
-        <div style={{
-          padding: '16px 20px 20px',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}>
+        {/* Content */}
+        <div style={{ padding: '16px 20px 20px' }}>
           {activeTab === 'text' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              minHeight: '220px',
-            }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#37352f',
-                flexShrink: 0,
-              }}>
-                Recipe Text
-              </label>
-              <div style={{
-                flex: 1,
-                marginBottom: '16px',
-                minHeight: '100px',
-              }}>
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Paste your recipe text here..."
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    padding: '12px',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    resize: 'none',
-                    fontFamily: 'inherit',
-                    outline: 'none',
-                  }}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                justifyContent: 'flex-end',
-                flexShrink: 0,
-                paddingTop: '8px',
-              }}>
-                <button
-                  onClick={closeModal}
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #e9e9e7',
-                    background: 'white',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                  }}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <SubmitButton
-                  onClick={handleAddFromText}
-                  disabled={!textInput.trim() || isSubmitting}
-                  isSubmitting={isSubmitting}
-                >
-                  Add Recipe
-                </SubmitButton>
-              </div>
+            <div>
+              <textarea
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Paste your recipe text here..."
+                style={{
+                  width: '100%',
+                  height: '150px',
+                  padding: '12px',
+                  border: '1px solid #e5e5e5',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  resize: 'none',
+                  fontFamily: 'inherit',
+                  outline: 'none',
+                  color: '#1a1a1a',
+                }}
+                disabled={isSubmitting}
+              />
             </div>
           )}
 
           {activeTab === 'link' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              minHeight: '220px',
-            }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#37352f',
-                flexShrink: 0,
-              }}>
-                Recipe URL
-              </label>
-              <div style={{
-                flex: 1,
-                marginBottom: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: '100px',
-              }}>
-                <input
-                  type="url"
-                  value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
-                  placeholder="https://example.com/recipe"
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '4px',
-                    fontSize: '14px',
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                  disabled={isSubmitting}
-                />
-              </div>
-
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                justifyContent: 'flex-end',
-                flexShrink: 0,
-                paddingTop: '8px',
-              }}>
-                <button
-                  onClick={closeModal}
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #e9e9e7',
-                    background: 'white',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                  }}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <SubmitButton
-                  onClick={handleAddFromLink}
-                  disabled={!linkInput.trim() || isSubmitting}
-                  isSubmitting={isSubmitting}
-                >
-                  Add Recipe
-                </SubmitButton>
-              </div>
+            <div>
+              <input
+                type="url"
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                placeholder="https://example.com/recipe"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  border: '1px solid #e5e5e5',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  color: '#1a1a1a',
+                }}
+                disabled={isSubmitting}
+              />
             </div>
           )}
 
           {activeTab === 'image' && (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              height: '100%',
-              minHeight: '220px',
-            }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontSize: '14px',
-                fontWeight: '500',
-                color: '#37352f',
-                flexShrink: 0,
-              }}>
-                Recipe Image
-              </label>
-
-              <div style={{
-                flex: 1,
-                marginBottom: '16px',
-                minHeight: '100px',
-              }}>
-                {/* File Upload Area */}
-                <div style={{
-                  border: '2px dashed #e9e9e7',
+            <div>
+              <div
+                style={{
+                  border: '2px dashed #e5e5e5',
                   borderRadius: '8px',
-                  padding: '20px',
+                  padding: '32px 24px',
                   textAlign: 'center',
                   cursor: 'pointer',
-                  backgroundColor: selectedImage ? '#f7f6f3' : 'transparent',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  boxSizing: 'border-box',
-                  overflow: 'hidden',
                 }}
                 onClick={() => document.getElementById('image-upload')?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.borderColor = '#37352f';
-                  e.currentTarget.style.backgroundColor = '#f7f6f3';
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.currentTarget.style.borderColor = '#e9e9e7';
-                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
-                }}
+                onDragOver={(e) => e.preventDefault()}
                 onDrop={async (e) => {
                   e.preventDefault();
-                  e.currentTarget.style.borderColor = '#e9e9e7';
-                  e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
-
                   const files = Array.from(e.dataTransfer.files);
                   const imageFile = files.find(file => file.type.startsWith('image/'));
                   if (imageFile) {
                     try {
-                      console.log('Processing dropped image...');
                       const processedFile = await processImageOrientation(imageFile);
                       setSelectedImage(processedFile);
-                      const previewUrl = URL.createObjectURL(processedFile);
-                      setImagePreview(previewUrl);
-                    } catch (error) {
-                      console.error('Error processing dropped image:', error);
+                      setImagePreview(URL.createObjectURL(processedFile));
+                    } catch {
                       setSelectedImage(imageFile);
-                      const previewUrl = URL.createObjectURL(imageFile);
-                      setImagePreview(previewUrl);
+                      setImagePreview(URL.createObjectURL(imageFile));
                     }
                   }
                 }}
-                >
-                  <input
-                    id="image-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    style={{ display: 'none' }}
-                    disabled={isSubmitting}
-                  />
-
-                  {imagePreview ? (
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                      height: '100%',
-                      justifyContent: 'center',
-                      maxHeight: '100%',
-                      overflow: 'hidden'
-                    }}>
-                      <img
-                        src={imagePreview}
-                        alt="Recipe preview"
-                        style={{
-                          maxWidth: '100px',
-                          maxHeight: '70px',
-                          borderRadius: '4px',
-                          objectFit: 'cover',
-                          flexShrink: 0
-                        }}
-                      />
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#666',
-                        fontWeight: '500',
-                        textAlign: 'center',
-                        wordBreak: 'break-word',
-                        maxWidth: '180px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {selectedImage?.name}
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#999',
-                        marginTop: '4px'
-                      }}>
-                        Click to change
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}>
-                      <div style={{
-                        fontSize: '24px',
-                        color: '#ccc',
-                      }}>
-                        📸
-                      </div>
-                      <div style={{
-                        fontSize: '14px',
-                        color: '#666',
-                        fontWeight: '500',
-                      }}>
-                        Upload Recipe Image
-                      </div>
-                      <div style={{
-                        fontSize: '12px',
-                        color: '#999',
-                      }}>
-                        Click or drag image here
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                justifyContent: 'flex-end',
-                flexShrink: 0,
-                paddingTop: '8px',
-              }}>
-                <button
-                  onClick={closeModal}
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #e9e9e7',
-                    background: 'white',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                  }}
+              >
+                <input
+                  id="image-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  style={{ display: 'none' }}
                   disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <SubmitButton
-                  onClick={handleAddFromImage}
-                  disabled={!selectedImage || isSubmitting}
-                  isSubmitting={isSubmitting}
-                >
-                  Add Recipe
-                </SubmitButton>
+                />
+                {imagePreview ? (
+                  <div>
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      style={{
+                        maxWidth: '100px',
+                        maxHeight: '80px',
+                        borderRadius: '4px',
+                        marginBottom: '8px',
+                      }}
+                    />
+                    <div style={{ fontSize: '13px', color: '#666' }}>
+                      {selectedImage?.name}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ color: '#999', fontSize: '14px' }}>
+                    Drop image or click to upload
+                  </div>
+                )}
               </div>
             </div>
           )}
+
+          {/* Actions */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            marginTop: '20px',
+          }}>
+            <button
+              onClick={closeModal}
+              disabled={isSubmitting}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #e5e5e5',
+                background: '#fff',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#6b6b6b',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={
+                activeTab === 'text' ? handleAddFromText :
+                activeTab === 'link' ? handleAddFromLink :
+                handleAddFromImage
+              }
+              disabled={
+                isSubmitting ||
+                (activeTab === 'text' && !textInput.trim()) ||
+                (activeTab === 'link' && !linkInput.trim()) ||
+                (activeTab === 'image' && !selectedImage)
+              }
+              style={{
+                padding: '8px 16px',
+                border: 'none',
+                background: '#1a1a1a',
+                color: '#fff',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                opacity: (
+                  isSubmitting ||
+                  (activeTab === 'text' && !textInput.trim()) ||
+                  (activeTab === 'link' && !linkInput.trim()) ||
+                  (activeTab === 'image' && !selectedImage)
+                ) ? 0.4 : 1,
+              }}
+            >
+              {isSubmitting ? 'Adding...' : 'Add Recipe'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -540,15 +304,11 @@ export default function Home() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // Sort recipes by date_added (newest first), handling null dates
   const sortedRecipes = useMemo(() => {
     return [...recipes].sort((a, b) => {
-      // Handle null dates - put them at the end
       if (!a.date_added && !b.date_added) return 0;
       if (!a.date_added) return 1;
       if (!b.date_added) return -1;
-
-      // Sort by date (newest first)
       return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
     });
   }, [recipes]);
@@ -563,11 +323,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Failed to fetch recipes:', err);
-      if (err instanceof Error && err.message === 'Authentication required') {
-        setError(null);
-      } else {
-        setError(null);
-      }
+      setError(null);
     } finally {
       setLoading(false);
     }
@@ -577,27 +333,24 @@ export default function Home() {
     fetchRecipes();
   }, [fetchRecipes]);
 
-  // Poll processing dishes every 5 seconds to check if they're ready
+  // Poll processing dishes
   useEffect(() => {
     const processingDishes = recipes.filter(r => r.status === 'processing');
-
     if (processingDishes.length === 0) return;
 
     const pollInterval = setInterval(async () => {
       try {
-        // Fetch updated data for each processing dish
         const updates = await Promise.all(
           processingDishes.map(async (dish) => {
             try {
               const updatedDish = await ApiService.getRecipeById(dish.dish_id);
               if (updatedDish && updatedDish.status !== 'processing') {
-                // Return updated metadata
                 return {
                   dish_id: updatedDish.dish_id,
                   title: updatedDish.title,
                   description: updatedDish.description,
                   emoji: updatedDish.emoji,
-                  date_added: dish.date_added, // Keep original date
+                  date_added: dish.date_added,
                   status: updatedDish.status,
                 } as RecipeMetadata;
               }
@@ -608,7 +361,6 @@ export default function Home() {
           })
         );
 
-        // Update state with any completed dishes
         const completedUpdates = updates.filter((u): u is RecipeMetadata => u !== null);
         if (completedUpdates.length > 0) {
           setRecipes(prev => prev.map(recipe => {
@@ -626,16 +378,14 @@ export default function Home() {
 
   const handleAddFromLink = useCallback(async () => {
     if (!linkInput.trim()) return;
-
     try {
       setIsSubmitting(true);
       await ApiService.addDishFromLink(linkInput.trim());
       closeModal();
-      // Refresh recipes list to show the new processing item
       await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from link:', err);
-      alert('Failed to add recipe from link. Please try again.');
+      alert('Failed to add recipe. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -643,16 +393,14 @@ export default function Home() {
 
   const handleAddFromText = useCallback(async () => {
     if (!textInput.trim()) return;
-
     try {
       setIsSubmitting(true);
       await ApiService.addDishFromText(textInput.trim());
       closeModal();
-      // Refresh recipes list to show the new processing item
       await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from text:', err);
-      alert('Failed to add recipe from text. Please try again.');
+      alert('Failed to add recipe. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -660,18 +408,15 @@ export default function Home() {
 
   const handleAddFromImage = useCallback(async () => {
     if (!selectedImage) return;
-
     try {
       setIsSubmitting(true);
-      console.log('Processing image before upload...');
       const processedImage = await processImageOrientation(selectedImage);
       await ApiService.addDishFromImage(processedImage);
       closeModal();
-      // Refresh recipes list to show the new processing item
       await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from image:', err);
-      alert('Failed to add recipe from image. Please try again.');
+      alert('Failed to add recipe. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -681,16 +426,12 @@ export default function Home() {
     const file = event.target.files?.[0];
     if (file) {
       try {
-        console.log('Processing selected image...');
         const processedFile = await processImageOrientation(file);
         setSelectedImage(processedFile);
-        const previewUrl = URL.createObjectURL(processedFile);
-        setImagePreview(previewUrl);
-      } catch (error) {
-        console.error('Error processing image:', error);
+        setImagePreview(URL.createObjectURL(processedFile));
+      } catch {
         setSelectedImage(file);
-        const previewUrl = URL.createObjectURL(file);
-        setImagePreview(previewUrl);
+        setImagePreview(URL.createObjectURL(file));
       }
     }
   }, []);
@@ -705,73 +446,17 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
         <Navbar />
-
         <div style={{
-          padding: '40px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 'calc(100vh - 60px)'
+          maxWidth: '600px',
+          margin: '0 auto',
+          padding: '60px 20px',
+          textAlign: 'center',
+          color: '#999',
+          fontSize: '14px',
         }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              fontSize: '18px',
-              color: '#787774',
-              marginBottom: '16px'
-            }}>
-              Loading recipes...
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-        <Navbar />
-
-        <div style={{
-          padding: '40px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          minHeight: 'calc(100vh - 60px)'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{
-              fontSize: '18px',
-              color: '#e74c3c',
-              marginBottom: '16px'
-            }}>
-              {error}
-            </div>
-            <button
-              onClick={() => window.location.reload()}
-              style={{
-                padding: '8px 16px',
-                background: '#37352f',
-                color: 'white',
-                border: 'none',
-                borderRadius: '3px',
-                fontSize: '14px',
-                cursor: 'pointer'
-              }}
-            >
-              Retry
-            </button>
-          </div>
+          Loading...
         </div>
       </div>
     );
@@ -779,149 +464,124 @@ export default function Home() {
 
   return (
     <ProtectedRoute>
-      <div style={{
-        minHeight: '100vh',
-        background: '#ffffff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      }}>
-      <Navbar />
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
+        <Navbar />
 
-      <div style={{ padding: '40px 20px' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <div style={{ marginBottom: '48px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-              <h1 style={{
-                fontSize: '32px',
-                fontWeight: '600',
-                color: '#37352f',
-                margin: '0'
-              }}>
-                Recipes
-              </h1>
-              <button
-                onClick={() => setShowModal(true)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#37352f',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span style={{ fontSize: '18px' }}>+</span>
-                Add
-              </button>
-            </div>
-
-          </div>
-
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
+          {/* Header */}
           <div style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: '1px'
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '32px',
           }}>
-            {sortedRecipes.map((recipe) => {
-              const isProcessing = recipe.status === 'processing';
+            <h1 style={{
+              fontSize: '32px',
+              fontWeight: '600',
+              color: '#1a1a1a',
+              margin: 0,
+            }}>
+              Recipes
+            </h1>
+            <button
+              onClick={() => setShowModal(true)}
+              style={{
+                padding: '8px 16px',
+                background: '#1a1a1a',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer',
+              }}
+            >
+              + Add
+            </button>
+          </div>
 
-              const dishContent = (
-                <div
-                  className={isProcessing ? 'processing-dish' : ''}
-                  style={{
-                    padding: '12px 16px',
-                    background: '#ffffff',
-                    border: '1px solid #e9e9e7',
-                    borderRadius: '3px',
-                    transition: 'background-color 0.1s ease',
-                    cursor: isProcessing ? 'default' : 'pointer',
-                    opacity: isProcessing ? 0.7 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isProcessing) {
-                      e.currentTarget.style.backgroundColor = '#f7f6f3';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isProcessing) {
-                      e.currentTarget.style.backgroundColor = '#ffffff';
-                    }
-                  }}
-                >
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px'
-                  }}>
-                    {recipe.emoji ? (
-                      <span style={{ fontSize: '20px' }}>
-                        {recipe.emoji}
-                      </span>
-                    ) : isProcessing ? (
-                      <span style={{ fontSize: '20px' }}>⏳</span>
-                    ) : null}
+          {/* Recipe List */}
+          <div style={{
+            background: '#fff',
+            border: '1px solid #e5e5e5',
+            borderRadius: '8px',
+            overflow: 'hidden',
+          }}>
+            {sortedRecipes.length === 0 ? (
+              <div style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: '#999',
+                fontSize: '14px',
+              }}>
+                No recipes yet
+              </div>
+            ) : (
+              sortedRecipes.map((recipe, index) => {
+                const isProcessing = recipe.status === 'processing';
+                const isLast = index === sortedRecipes.length - 1;
+
+                const content = (
+                  <div
+                    className={isProcessing ? 'processing-dish' : ''}
+                    style={{
+                      padding: '14px 16px',
+                      borderBottom: isLast ? 'none' : '1px solid #e5e5e5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      cursor: isProcessing ? 'default' : 'pointer',
+                    }}
+                  >
+                    {recipe.emoji && (
+                      <span style={{ fontSize: '20px' }}>{recipe.emoji}</span>
+                    )}
                     <span style={{
                       fontSize: '16px',
-                      fontWeight: '500',
-                      color: isProcessing ? '#9ca3af' : '#37352f',
-                      lineHeight: '1.4'
+                      color: isProcessing ? '#999' : '#1a1a1a',
                     }}>
                       {recipe.title}
                     </span>
                   </div>
-                </div>
-              );
-
-              if (isProcessing) {
-                return (
-                  <div key={recipe.dish_id} style={{ display: 'block' }}>
-                    {dishContent}
-                  </div>
                 );
-              }
 
-              return (
-                <Link
-                  key={recipe.dish_id}
-                  href={`/recipe/${recipe.dish_id}`}
-                  style={{
-                    textDecoration: 'none',
-                    color: 'inherit',
-                    display: 'block'
-                  }}
-                >
-                  {dishContent}
-                </Link>
-              );
-            })}
+                if (isProcessing) {
+                  return <div key={recipe.dish_id}>{content}</div>;
+                }
+
+                return (
+                  <Link
+                    key={recipe.dish_id}
+                    href={`/recipe/${recipe.dish_id}`}
+                    style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                  >
+                    {content}
+                  </Link>
+                );
+              })
+            )}
           </div>
         </div>
-      </div>
 
-      <Modal
-        showModal={showModal}
-        closeModal={closeModal}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        linkInput={linkInput}
-        setLinkInput={setLinkInput}
-        textInput={textInput}
-        setTextInput={setTextInput}
-        selectedImage={selectedImage}
-        setSelectedImage={setSelectedImage}
-        imagePreview={imagePreview}
-        setImagePreview={setImagePreview}
-        isSubmitting={isSubmitting}
-        handleAddFromLink={handleAddFromLink}
-        handleAddFromText={handleAddFromText}
-        handleAddFromImage={handleAddFromImage}
-        handleImageSelect={handleImageSelect}
-      />
-    </div>
+        <Modal
+          showModal={showModal}
+          closeModal={closeModal}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          linkInput={linkInput}
+          setLinkInput={setLinkInput}
+          textInput={textInput}
+          setTextInput={setTextInput}
+          selectedImage={selectedImage}
+          setSelectedImage={setSelectedImage}
+          imagePreview={imagePreview}
+          setImagePreview={setImagePreview}
+          isSubmitting={isSubmitting}
+          handleAddFromLink={handleAddFromLink}
+          handleAddFromText={handleAddFromText}
+          handleAddFromImage={handleAddFromImage}
+          handleImageSelect={handleImageSelect}
+        />
+      </div>
     </ProtectedRoute>
   );
 }

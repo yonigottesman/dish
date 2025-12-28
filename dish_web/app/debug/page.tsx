@@ -5,6 +5,9 @@ import { buildApiUrl, API_CONFIG } from '../config/api';
 
 // Helper function to get all cookies
 const getAllCookies = () => {
+  if (typeof document === 'undefined') {
+    return {};
+  }
   const cookies = document.cookie.split(';').reduce((acc, cookie) => {
     const [name, value] = cookie.trim().split('=');
     acc[name] = value;
@@ -15,6 +18,9 @@ const getAllCookies = () => {
 
 // Helper function to get localStorage data
 const getLocalStorageData = () => {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+    return {};
+  }
   const data: Record<string, string> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -59,7 +65,9 @@ export default function DebugPage() {
       }
 
       // Try with localStorage token in header
-      const storedToken = localStorage.getItem('auth-token');
+      const storedToken = typeof localStorage !== 'undefined' && typeof localStorage.getItem === 'function' 
+        ? localStorage.getItem('auth-token') 
+        : null;
       if (storedToken) {
         const response2 = await fetch(`${API_CONFIG.BASE_URL}/`, {
           method: 'GET',
@@ -92,7 +100,9 @@ export default function DebugPage() {
     });
     
     // Clear localStorage
-    window.localStorage.clear();
+    if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined' && typeof window.localStorage.clear === 'function') {
+      window.localStorage.clear();
+    }
     
     // Refresh data
     setCookies(getAllCookies());

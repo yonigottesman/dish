@@ -113,7 +113,6 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
                 return cookie_authorization
 
         # If no valid authorization found
-        logger.warning("No authorization token found")
         if self.auto_error:
             raise HTTPException(
                 status_code=HTTP_401_UNAUTHORIZED,
@@ -129,7 +128,6 @@ TokenDep = Annotated[str, Depends(oauth2_scheme)]
 
 async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
     if not token:
-        logger.warning("get_current_user called with no token")
         raise NotAuthenticatedException
 
     logger.info(f"Attempting to decode token: {token[:10]}...")

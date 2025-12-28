@@ -8,8 +8,18 @@ from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
 from app.config import settings
+from app.crud import (
+    create_shared_recipe_ref,
+    get_recipe,
+    get_recipe_by_username,
+    get_recipes_metadata,
+    get_shared_recipe_ref,
+    get_user,
+    insert_placeholder_recipe,
+    insert_recipe,
+    update_recipe,
+)
 from app.crud import delete_recipe as crud_delete_recipe
-from app.crud import get_recipe, get_recipes_metadata, insert_placeholder_recipe, update_recipe
 from app.dependencies import (
     CurrentUser,
     LoggerDep,
@@ -249,3 +259,124 @@ async def save_edit_dish(
 
     await update_recipe(db, current_user, updated_recipe_model)
     return updated_recipe_model.model_dump()
+
+
+@router.post("/share/{dish_id}")
+async def share_dish(dish_id: str, current_user: CurrentUser, db: SessionDep):
+    """Create a share link for a dish"""
+    try:
+        shared_ref, created = await create_shared_recipe_ref(db, current_user, dish_id)
+        return {"dish_id": shared_ref.dish_id, "created": created}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/dish_shared/{dish_id}")
+async def get_shared_dish(dish_id: str, db: SessionDep):
+    """Get a shared dish by ID (no authentication required)"""
+    # First get the shared reference
+    shared_ref = await get_shared_recipe_ref(db, dish_id)
+    if not shared_ref:
+        raise HTTPException(status_code=404, detail="Shared recipe not found")
+
+    # Then fetch the actual recipe from the owner's collection
+    recipe = await get_recipe_by_username(db, shared_ref.owner_username, dish_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Return recipe data with owner info
+    result = recipe.model_dump()
+    result["owner_username"] = shared_ref.owner_username
+    return result
+
+
+@router.post("/add_shared_dish/{dish_id}")
+async def add_shared_dish(
+    dish_id: str,
+    current_user: CurrentUser,
+    db: SessionDep,
+    storage_client: StorageClientDep,
+):
+    """Copy a shared dish to the current user's account"""
+
+    # Get the shared reference
+    shared_ref = await get_shared_recipe_ref(db, dish_id)
+    if not shared_ref:
+        raise HTTPException(status_code=404, detail="Shared recipe not found")
+
+    # Get the original recipe
+    original_recipe = await get_recipe_by_username(db, shared_ref.owner_username, dish_id)
+    if not original_recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Get the owner's user_id for accessing their images
+    owner = await get_user(db, shared_ref.owner_username)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    # Generate new dish_id for the copy
+    new_dish_id = str(uuid.uuid4())
+
+    # Copy images to current user's storage
+    new_image_ids = []
+    if original_recipe.image_ids:
+        bucket = storage_client.bucket(settings.GCS_BUCKET_NAME)
+        for old_image_id in original_recipe.image_ids:
+            # Download from owner's storage
+            old_blob_path = f"{owner.user_id}/{old_image_id}"
+            old_blob = bucket.blob(old_blob_path)
+            try:
+                image_data = old_blob.download_as_bytes()
+                # Upload to current user's storage with new id
+                new_image_id = f"{str(uuid.uuid4())}.jpeg"
+                new_blob_path = f"{current_user.user_id}/{new_image_id}"
+                new_blob = bucket.blob(new_blob_path)
+                new_blob.upload_from_string(image_data, content_type="image/jpeg")
+                new_image_ids.append(new_image_id)
+            except Exception:
+                # Skip images that fail to copy
+                pass
+
+    # Create the new recipe
+    new_recipe = RecipeModel(
+        dish_id=new_dish_id,
+        title=original_recipe.title,
+        description=original_recipe.description,
+        ingredients=original_recipe.ingredients,
+        instructions=original_recipe.instructions,
+        image_ids=new_image_ids if new_image_ids else None,
+        link=original_recipe.link,
+        emoji=original_recipe.emoji,
+        language=original_recipe.language,
+    )
+
+    await insert_recipe(db, current_user, new_recipe)
+    return new_recipe.model_dump()
+
+
+@router.get("/shared_image/{dish_id}/{image_id}")
+async def get_shared_image(
+    dish_id: str,
+    image_id: str,
+    db: SessionDep,
+    storage_client: StorageClientDep,
+):
+    """Get an image for a shared dish (no authentication required)"""
+    # Verify the dish is shared
+    shared_ref = await get_shared_recipe_ref(db, dish_id)
+    if not shared_ref:
+        raise HTTPException(status_code=404, detail="Shared recipe not found")
+
+    # Get the owner's user_id to access their images
+    from app.crud import get_user
+
+    owner = await get_user(db, shared_ref.owner_username)
+    if not owner:
+        raise HTTPException(status_code=404, detail="Owner not found")
+
+    blob_path = f"{owner.user_id}/{image_id}"
+    blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
+    try:
+        return Response(content=blob.download_as_bytes(), media_type="image/jpeg")
+    except Exception:
+        raise HTTPException(status_code=404, detail="Image not found")

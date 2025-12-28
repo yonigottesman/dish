@@ -25,6 +25,12 @@ export const API_CONFIG = {
     DELETE_RECIPE: '/delete',
     IMAGE: '/image',
 
+    // Share endpoints
+    SHARE_DISH: '/share',
+    SHARED_DISH: '/dish_shared',
+    SHARED_IMAGE: '/shared_image',
+    ADD_SHARED_DISH: '/add_shared_dish',
+
     // Auth endpoints
     LOGIN: '/token',
     LOGOUT: '/logout',

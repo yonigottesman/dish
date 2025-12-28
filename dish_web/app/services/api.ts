@@ -24,6 +24,19 @@ export interface RecipeMetadata {
   date_added?: string;
   status?: 'processing' | 'completed' | 'failed';
 }
+
+export interface SharedRecipe {
+  dish_id: string;
+  owner_username: string;
+  title: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  image_ids?: string[];
+  link?: string;
+  emoji?: string;
+  language: string;
+}
 // User interface
 export interface User {
   username: string;
@@ -380,5 +393,110 @@ export class ApiService {
    */
   static getImageUrl(imageId: string): string {
     return buildApiUrl(API_CONFIG.ENDPOINTS.IMAGE, imageId);
+  }
+
+  /**
+   * Share a dish and get a shareable link
+   */
+  static async shareDish(dishId: string): Promise<{ dish_id: string; created: boolean }> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.SHARE_DISH, dishId);
+      console.log(`Sharing dish: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        ...this.defaultOptions,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
+          storeUser(null);
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log(`Successfully shared dish:`, result);
+      return result;
+    } catch (error) {
+      console.error(`Error sharing dish with ID ${dishId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a shared dish by ID (no authentication required)
+   */
+  static async getSharedDish(dishId: string): Promise<SharedRecipe | null> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.SHARED_DISH, dishId);
+      console.log(`Fetching shared dish from: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const recipe: SharedRecipe = await response.json();
+      console.log(`Successfully fetched shared dish:`, recipe);
+      return recipe;
+    } catch (error) {
+      console.error(`Error fetching shared dish with ID ${dishId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the URL for a shared image
+   */
+  static getSharedImageUrl(dishId: string, imageId: string): string {
+    return `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.SHARED_IMAGE}/${dishId}/${imageId}`;
+  }
+
+  /**
+   * Add a shared dish to the current user's account (copies data and images)
+   */
+  static async addSharedDish(dishId: string): Promise<Recipe> {
+    try {
+      const url = buildApiUrl(API_CONFIG.ENDPOINTS.ADD_SHARED_DISH, dishId);
+      console.log(`Adding shared dish: ${url}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        ...this.defaultOptions,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+
+        if (response.status === 401 || (errorData?.detail === "Authentication required")) {
+          storeUser(null);
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const recipe: Recipe = await response.json();
+      console.log(`Successfully added shared dish:`, recipe);
+      return recipe;
+    } catch (error) {
+      console.error(`Error adding shared dish with ID ${dishId}:`, error);
+      throw error;
+    }
   }
 } 

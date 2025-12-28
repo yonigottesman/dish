@@ -77,3 +77,10 @@ class PubSubMessage(BaseModel):
     text_data: str | None = None
     image_data_gcs_path: str | None = None
     link_data_url: str | None = None
+
+
+class SharedRecipeRef(BaseModel):
+    """Reference to a shared recipe - stores only the pointer, not the full recipe"""
+    dish_id: str
+    owner_username: str
+    shared_at: datetime

@@ -106,6 +106,8 @@ export default function RecipePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
 
@@ -168,6 +170,20 @@ export default function RecipePage() {
       alert('Failed to delete recipe. Please try again.');
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!recipe) return;
+    try {
+      setIsSharing(true);
+      await ApiService.shareDish(recipeId);
+      setShareLink(`${window.location.origin}/shared/${recipeId}`);
+    } catch (err) {
+      console.error('Failed to share recipe:', err);
+      alert('Failed to create share link. Please try again.');
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -538,20 +554,60 @@ export default function RecipePage() {
           {/* Actions */}
           <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px' }}>
             {!isEditing ? (
-              <button
-                onClick={handleEdit}
-                style={{
-                  padding: '10px 20px',
-                  background: '#1a1a1a',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  cursor: 'pointer',
-                }}
-              >
-                Edit Recipe
-              </button>
+              <>
+                <button
+                  onClick={handleEdit}
+                  style={{
+                    padding: '10px 20px',
+                    background: '#1a1a1a',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Edit Recipe
+                </button>
+                {!shareLink ? (
+                  <button
+                    onClick={handleShare}
+                    disabled={isSharing}
+                    style={{
+                      padding: '10px 20px',
+                      background: '#fff',
+                      color: '#1a1a1a',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      cursor: 'pointer',
+                      opacity: isSharing ? 0.5 : 1,
+                    }}
+                  >
+                    {isSharing ? 'Creating...' : 'Create Share Link'}
+                  </button>
+                ) : (
+                  <div
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareLink).catch(() => {});
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: '#1a1a1a',
+                      background: '#fafafa',
+                      cursor: 'pointer',
+                      userSelect: 'all',
+                      WebkitUserSelect: 'all',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {shareLink}
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <button

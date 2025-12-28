@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from google.cloud import firestore
 from google.cloud.firestore import AsyncClient
 
-from app.models import DishStatus, RecipeMetadata, RecipeModel, User, UserInDB
+from app.models import DishStatus, RecipeMetadata, RecipeModel, SharedRecipeRef, User, UserInDB
 from app.security import verify_password
 
 
@@ -202,3 +202,45 @@ async def mark_recipe_failed(db: AsyncClient, username: str, dish_id: str, error
         "title": "Processing Failed",
         "description": error_message[:200],
     })
+
+
+async def create_shared_recipe_ref(db: AsyncClient, user: User, dish_id: str) -> tuple[SharedRecipeRef, bool]:
+    """Create a reference in the shared collection for public access.
+    Returns (shared_ref, created) where created is False if already shared."""
+    # Check if already shared
+    existing = await db.collection("shared").document(dish_id).get()
+    if existing.exists:
+        return SharedRecipeRef(**existing.to_dict()), False
+
+    # Verify the recipe exists
+    user_ref = db.collection("users").document(user.username)
+    snapshot = await user_ref.collection("recipes").document(dish_id).get()
+    if not snapshot.exists:
+        raise ValueError("Recipe not found")
+
+    shared_ref = SharedRecipeRef(
+        dish_id=dish_id,
+        owner_username=user.username,
+        shared_at=datetime.now(timezone.utc),
+    )
+
+    # Save reference to the shared collection
+    await db.collection("shared").document(dish_id).set(shared_ref.model_dump(mode="json"))
+    return shared_ref, True
+
+
+async def get_shared_recipe_ref(db: AsyncClient, dish_id: str) -> SharedRecipeRef | None:
+    """Get a shared recipe reference by dish_id (no auth required)"""
+    snapshot = await db.collection("shared").document(dish_id).get()
+    if snapshot.exists:
+        return SharedRecipeRef(**snapshot.to_dict())
+    return None
+
+
+async def get_recipe_by_username(db: AsyncClient, username: str, recipe_id: str) -> RecipeModel | None:
+    """Get a recipe by username and recipe_id (for shared access)"""
+    user_ref = db.collection("users").document(username)
+    snapshot = await user_ref.collection("recipes").document(recipe_id).get()
+    if snapshot.exists:
+        return RecipeModel(**snapshot.to_dict())
+    return None

@@ -40,16 +40,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Check authentication from localStorage on mount (no API call)
   useEffect(() => {
-    // Check if we're on the login page
-    if (pathname === '/login') {
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        isLoading: false,
-        error: null
-      });
-      return;
-    }
+    // Public routes that don't require authentication
+    const isPublicRoute = pathname === '/login' || pathname?.startsWith('/shared');
 
     // Read user from localStorage
     const storedUser = getStoredUser();
@@ -64,14 +56,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         error: null
       });
     } else {
-      // No stored user - redirect to login
+      // No stored user
       setAuthState({
         isAuthenticated: false,
         user: null,
         isLoading: false,
         error: null
       });
-      router.push('/login');
+      // Only redirect to login if not on a public route
+      if (!isPublicRoute) {
+        router.push('/login');
+      }
     }
   }, [pathname, router]);
 

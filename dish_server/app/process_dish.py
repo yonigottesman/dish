@@ -307,7 +307,7 @@ class ProcessDishCallback:
         # Call GenAI with OCR text and image
         self.logger.info("[IMAGE] Calling GenAI with OCR text and image...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-flash-preview",
             contents=[
                 (
                     "Extract complete recipe from OCR text and image. Cross-reference both sources for accuracy. "

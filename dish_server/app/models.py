@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel
 
@@ -34,6 +35,18 @@ class GoogleTokenRequest(BaseModel):
     credential: str
 
 
+class DishImportType(Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    LINK = "link"
+
+
+class DishStatus(Enum):
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class RecipeModel(BaseModel):
     dish_id: str
     title: str
@@ -44,6 +57,8 @@ class RecipeModel(BaseModel):
     link: str | None = None
     emoji: str | None = None
     language: str = "en"
+    status: DishStatus | None = None
+    error_message: str | None = None
 
 
 class RecipeMetadata(BaseModel):
@@ -52,3 +67,13 @@ class RecipeMetadata(BaseModel):
     description: str
     emoji: str | None = None
     date_added: datetime | None = None
+    status: DishStatus | None = None
+
+
+class PubSubMessage(BaseModel):
+    dish_id: str
+    import_type: DishImportType
+    username: str
+    text_data: str | None = None
+    image_data_gcs_path: str | None = None
+    link_data_url: str | None = None

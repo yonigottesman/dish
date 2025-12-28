@@ -1,4 +1,5 @@
 import { API_CONFIG, buildApiUrl } from '../config/api';
+import { storeUser } from '../utils/authStorage';
 
 // Recipe interface to match the backend data structure
 export interface Recipe {
@@ -57,7 +58,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -91,7 +93,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -128,7 +131,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -162,7 +166,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -203,7 +208,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -251,7 +257,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }
@@ -285,7 +292,8 @@ export class ApiService {
         const errorData = await response.json().catch(() => null);
 
         if (response.status === 401 || (errorData?.detail === "Authentication required")) {
-          // Handle unauthorized - redirect to login
+          // Handle unauthorized - clear localStorage and redirect to login
+          storeUser(null);
           window.location.href = '/login';
           throw new Error('Authentication required');
         }

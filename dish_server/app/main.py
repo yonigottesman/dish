@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, status
@@ -5,13 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from google import genai
 from google.api_core.client_options import ClientOptions
-from google.cloud import documentai_v1, firestore, storage
+from google.cloud import documentai_v1, firestore, pubsub, storage
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.dependencies import NotAuthenticatedException
+from app.dependencies import NotAuthenticatedException, get_logger
 from app.dish import router as dish_router
 from app.login import router as login_router
+from app.process_dish import ProcessDishCallback
 
 # logging.basicConfig(level=logging.INFO)
 
@@ -30,16 +32,39 @@ async def build_documentai_processor():
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: Create the Firestore client once. super slow init otherwise
-    app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
-    app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
-    app.state.documentai_processor, app.state.documentai_client = await build_documentai_processor()
-    app.state.storage_client = storage.Client(project=settings.GOOGLE_CLOUD_PROJECT)
+async def lifespan(_app: FastAPI):
+    _app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
+    _app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
+    _app.state.documentai_processor, _app.state.documentai_client = await build_documentai_processor()
+    _app.state.storage_client = storage.Client(project=settings.GOOGLE_CLOUD_PROJECT)
+
+    _app.state.pubsub_publisher = pubsub.PublisherClient()
+    _app.state.pubsub_subscriber = pubsub.SubscriberClient()
+    _app.state.pubsub_subscription_path = _app.state.pubsub_subscriber.subscription_path(
+        settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_SUBSCRIPTION_ID
+    )
+
+    # Get the current event loop to pass to the callback
+    loop = asyncio.get_running_loop()
+
+    future = _app.state.pubsub_subscriber.subscribe(
+        _app.state.pubsub_subscription_path,
+        ProcessDishCallback(
+            logger=get_logger(),
+            storage_client=_app.state.storage_client,
+            genai_client=_app.state.genai_client,
+            documentai_processor=_app.state.documentai_processor,
+            documentai_client=_app.state.documentai_client,
+            db=_app.state.db,
+            loop=loop,
+        ),
+    )
     yield
 
     # Shutdown: Close the clients
-    #    ...
+    if future:
+        future.cancel()
+        future.result()  # Wait for it to stop
 
 
 app = FastAPI(lifespan=lifespan)

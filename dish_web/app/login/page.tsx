@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { buildApiUrl, API_CONFIG } from '../config/api';
-import { useAuth } from '../context/auth-context';
-import { checkAuthStatus } from '../services/auth';
+import { useAuth, storeUser } from '../context/auth-context';
 
 declare global {
   interface Window {
@@ -13,37 +12,20 @@ declare global {
 }
 
 // Separate component for handling search params
-function SearchParamsHandler({ 
-  setError 
-}: { 
-  setError: (error: string) => void 
+function SearchParamsHandler({
+  setError
+}: {
+  setError: (error: string) => void
 }) {
   const searchParams = useSearchParams();
 
   useEffect(() => {
     // Check for any auth parameters in the URL
     const error = searchParams.get('error');
-    
+
     if (error) {
       setError(error === 'google_auth_failed' ? 'Google authentication failed' : error);
     }
-
-    // We just check for auth status as normal - the backend has set the cookie
-    // The auth context will handle redirecting to home if authenticated
-    const checkAuth = async () => {
-      try {
-        // Check if we're authenticated after being redirected back from Google OAuth
-        const user = await checkAuthStatus();
-        if (user) {
-          // We're authenticated, redirect to home
-          window.location.href = '/';
-        }
-      } catch (error) {
-        console.error('Error checking auth status after OAuth redirect:', error);
-      }
-    };
-    
-    checkAuth();
   }, [searchParams, setError]);
 
   return null; // This component doesn't render anything
@@ -121,6 +103,16 @@ function LoginPageContent() {
       if (result.ok) {
         const data = await result.json();
         console.log('Google authentication successful:', data);
+
+        // Store user in localStorage
+        if (data.user) {
+          storeUser({
+            username: data.user.username,
+            email: data.user.email,
+            full_name: data.user.full_name,
+          });
+        }
+
         // Redirect to home page
         window.location.href = '/';
       } else {
@@ -149,13 +141,22 @@ function LoginPageContent() {
         method: 'POST',
         body: formData,
         credentials: 'include', // Important for cookies
-        redirect: 'manual', // Don't automatically follow redirects
       });
 
-      // The backend sets a cookie and redirects to home
-      // Since we use credentials: 'include', the cookie will be saved
-      if (response.ok || response.type === 'opaqueredirect') {
-        // Successful login, redirect to home
+      if (response.ok) {
+        // Successful login - get user from response
+        const data = await response.json();
+
+        // Store user in localStorage
+        if (data.user) {
+          storeUser({
+            username: data.user.username,
+            email: data.user.email,
+            full_name: data.user.full_name,
+          });
+        }
+
+        // Redirect to home
         window.location.href = '/';
       } else {
         // Try to get error details

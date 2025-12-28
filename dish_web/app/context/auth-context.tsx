@@ -2,13 +2,18 @@
 
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { User, AuthState, SignupData, checkAuthStatus, signup } from '../services/auth';
+import { User, AuthState, SignupData, signup } from '../services/auth';
 import { ApiService } from '../services/api';
+import { getStoredUser, storeUser } from '../utils/authStorage';
+
+// Re-export storeUser for convenience
+export { storeUser } from '../utils/authStorage';
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string) => Promise<boolean>;
   signup: (data: SignupData) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<boolean>;
+  setUser: (user: User | null) => void;
 }
 
 const defaultAuthState: AuthState = {
@@ -22,7 +27,8 @@ const AuthContext = createContext<AuthContextType>({
   ...defaultAuthState,
   login: async () => false,
   signup: async () => ({ success: false }),
-  logout: async () => false
+  logout: async () => false,
+  setUser: () => {}
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -32,86 +38,87 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Check authentication status on mount
+  // Check authentication from localStorage on mount (no API call)
   useEffect(() => {
-    const verifyAuth = async () => {
-      try {
-        // Check if we're already on the login page to avoid redirect loops
-        if (pathname === '/login') {
-          setAuthState({
-            isAuthenticated: false,
-            user: null,
-            isLoading: false,
-            error: null
-          });
-          return;
-        }
+    // Check if we're on the login page
+    if (pathname === '/login') {
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+        error: null
+      });
+      return;
+    }
 
-        const user = await checkAuthStatus();
+    // Read user from localStorage
+    const storedUser = getStoredUser();
 
-        setAuthState({
-          isAuthenticated: !!user,
-          user,
-          isLoading: false,
-          error: null
-        });
-
-        // If not authenticated and not on login page, redirect to login
-        if (!user && pathname !== '/login') {
-          router.push('/login');
-        }
-
-        // If authenticated and on login page, redirect to home
-        if (user && pathname === '/login') {
-          router.push('/');
-        }
-      } catch (error) {
-        console.error('Auth verification error:', error);
-        
-        // Don't show error message when redirecting to login
-        // This prevents the red error flash before redirect
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          isLoading: false,
-          error: null  // Changed from 'Failed to verify authentication' to null
-        });
-
-        // Redirect to login on error if not already there
-        if (pathname !== '/login') {
-          router.push('/login');
-        }
-      }
-    };
-
-    verifyAuth();
+    if (storedUser) {
+      // User found in localStorage - consider authenticated
+      // If token is actually expired, API calls will return 401 and redirect
+      setAuthState({
+        isAuthenticated: true,
+        user: storedUser,
+        isLoading: false,
+        error: null
+      });
+    } else {
+      // No stored user - redirect to login
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+        error: null
+      });
+      router.push('/login');
+    }
   }, [pathname, router]);
+
+  // Helper to update user state
+  const setUser = (user: User | null) => {
+    storeUser(user);
+    setAuthState(prev => ({
+      ...prev,
+      isAuthenticated: !!user,
+      user
+    }));
+  };
   
   // Login function that will be exposed through context
   const login = async (username: string, password: string): Promise<boolean> => {
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
-      
+
       const response = await fetch('/api/token', {
         method: 'POST',
         body: formData,
         credentials: 'include',
       });
-      
+
       if (response.ok) {
-        // Auth successful
-        const user = await checkAuthStatus();
+        // Auth successful - get user from response
+        const data = await response.json();
+        const user = data.user ? {
+          username: data.user.username,
+          email: data.user.email,
+          full_name: data.user.full_name,
+        } : null;
+
+        // Store user in localStorage
+        storeUser(user);
+
         setAuthState({
           isAuthenticated: true,
           user,
           isLoading: false,
           error: null
         });
-        
+
         router.push('/');
         return true;
       } else {
@@ -138,9 +145,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleLogout = async (): Promise<boolean> => {
     console.log('AuthContext: Starting logout process...');
     setAuthState(prev => ({ ...prev, isLoading: true }));
-    
+
+    // Clear localStorage first
+    storeUser(null);
+
     const success = await ApiService.logout();
-    
+
     if (success) {
       console.log('AuthContext: Logout successful, clearing state');
       setAuthState({
@@ -149,13 +159,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading: false,
         error: null
       });
-      
+
       // Force redirect to login page
       console.log('AuthContext: Redirecting to login page');
       window.location.href = '/login';
       return true;
     }
-    
+
     console.log('AuthContext: Logout failed, keeping current state');
     setAuthState(prev => ({ ...prev, isLoading: false }));
     return false;
@@ -169,7 +179,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const result = await signup(data);
 
       if (result.success && result.user) {
-        // Signup was successful
+        // Signup was successful - store user in localStorage
+        storeUser(result.user);
+
         setAuthState({
           isAuthenticated: true,
           user: result.user,
@@ -203,7 +215,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       ...authState,
       login,
       signup: handleSignup,
-      logout: handleLogout
+      logout: handleLogout,
+      setUser
     }}>
       {children}
     </AuthContext.Provider>

@@ -2,14 +2,11 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
-import { ApiService, Recipe, RecipeMetadata } from './services/api';
-import { useRouter } from 'next/navigation';
+import { ApiService, RecipeMetadata } from './services/api';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
 import { processImageOrientation } from './utils/imageUtils';
-import { useProgressBar } from './hooks/useTabProgressBar';
-import { ProgressBar } from './components/ProgressBar';
 
 // Reusable Spinner Component
 const Spinner = () => (
@@ -24,12 +21,12 @@ const Spinner = () => (
 );
 
 // Reusable Submit Button Component
-const SubmitButton = ({ 
-  onClick, 
-  disabled, 
+const SubmitButton = ({
+  onClick,
+  disabled,
   children,
-  isSubmitting 
-}: { 
+  isSubmitting
+}: {
   onClick: () => void;
   disabled: boolean;
   children: React.ReactNode;
@@ -57,30 +54,24 @@ const SubmitButton = ({
 );
 
 // Modal Component - memoized to prevent unnecessary re-renders
-const Modal = memo(({ 
-  showModal, 
-  closeModal, 
-  activeTab, 
-  setActiveTab, 
-  linkInput, 
-  setLinkInput, 
-  textInput, 
-  setTextInput, 
-  selectedImage, 
-  setSelectedImage, 
-  imagePreview, 
-  setImagePreview, 
-  isSubmitting, 
-  handleAddFromLink, 
-  handleAddFromText, 
+const Modal = memo(({
+  showModal,
+  closeModal,
+  activeTab,
+  setActiveTab,
+  linkInput,
+  setLinkInput,
+  textInput,
+  setTextInput,
+  selectedImage,
+  setSelectedImage,
+  imagePreview,
+  setImagePreview,
+  isSubmitting,
+  handleAddFromLink,
+  handleAddFromText,
   handleAddFromImage,
   handleImageSelect,
-  uploadProgress,
-  isUploading,
-  linkProgress,
-  linkIsUploading,
-  textProgress,
-  textIsUploading
 }: {
   showModal: boolean;
   closeModal: () => void;
@@ -99,12 +90,6 @@ const Modal = memo(({
   handleAddFromText: () => void;
   handleAddFromImage: () => void;
   handleImageSelect: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  uploadProgress: number;
-  isUploading: boolean;
-  linkProgress: number;
-  linkIsUploading: boolean;
-  textProgress: number;
-  textIsUploading: boolean;
 }) => {
   if (!showModal) return null;
 
@@ -191,7 +176,7 @@ const Modal = memo(({
         </div>
 
         {/* Tab Content */}
-        <div style={{ 
+        <div style={{
           padding: '16px 20px 20px',
           flex: 1,
           display: 'flex',
@@ -199,9 +184,9 @@ const Modal = memo(({
           minHeight: 0,
         }}>
           {activeTab === 'text' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
               height: '100%',
               minHeight: '220px',
             }}>
@@ -215,7 +200,7 @@ const Modal = memo(({
               }}>
                 Recipe Text
               </label>
-              <div style={{ 
+              <div style={{
                 flex: 1,
                 marginBottom: '16px',
                 minHeight: '100px',
@@ -239,13 +224,10 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
-              
-              {/* Progress Bar for Text */}
-              <ProgressBar progress={textProgress} isActive={textIsUploading} />
 
-              <div style={{ 
-                display: 'flex', 
-                gap: '12px', 
+              <div style={{
+                display: 'flex',
+                gap: '12px',
                 justifyContent: 'flex-end',
                 flexShrink: 0,
                 paddingTop: '8px',
@@ -276,9 +258,9 @@ const Modal = memo(({
           )}
 
           {activeTab === 'link' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
               height: '100%',
               minHeight: '220px',
             }}>
@@ -292,7 +274,7 @@ const Modal = memo(({
               }}>
                 Recipe URL
               </label>
-              <div style={{ 
+              <div style={{
                 flex: 1,
                 marginBottom: '16px',
                 display: 'flex',
@@ -316,13 +298,10 @@ const Modal = memo(({
                   disabled={isSubmitting}
                 />
               </div>
-              
-              {/* Progress Bar for Link */}
-              <ProgressBar progress={linkProgress} isActive={linkIsUploading} />
 
-              <div style={{ 
-                display: 'flex', 
-                gap: '12px', 
+              <div style={{
+                display: 'flex',
+                gap: '12px',
                 justifyContent: 'flex-end',
                 flexShrink: 0,
                 paddingTop: '8px',
@@ -353,9 +332,9 @@ const Modal = memo(({
           )}
 
           {activeTab === 'image' && (
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
               height: '100%',
               minHeight: '220px',
             }}>
@@ -369,8 +348,8 @@ const Modal = memo(({
               }}>
                 Recipe Image
               </label>
-              
-              <div style={{ 
+
+              <div style={{
                 flex: 1,
                 marginBottom: '16px',
                 minHeight: '100px',
@@ -407,20 +386,18 @@ const Modal = memo(({
                   e.preventDefault();
                   e.currentTarget.style.borderColor = '#e9e9e7';
                   e.currentTarget.style.backgroundColor = selectedImage ? '#f7f6f3' : 'transparent';
-                  
+
                   const files = Array.from(e.dataTransfer.files);
                   const imageFile = files.find(file => file.type.startsWith('image/'));
                   if (imageFile) {
                     try {
                       console.log('Processing dropped image...');
-                      // Process the image orientation
                       const processedFile = await processImageOrientation(imageFile);
                       setSelectedImage(processedFile);
                       const previewUrl = URL.createObjectURL(processedFile);
                       setImagePreview(previewUrl);
                     } catch (error) {
                       console.error('Error processing dropped image:', error);
-                      // Fallback to original file if processing fails
                       setSelectedImage(imageFile);
                       const previewUrl = URL.createObjectURL(imageFile);
                       setImagePreview(previewUrl);
@@ -436,7 +413,7 @@ const Modal = memo(({
                     style={{ display: 'none' }}
                     disabled={isSubmitting}
                   />
-                  
+
                   {imagePreview ? (
                     <div style={{
                       display: 'flex',
@@ -511,12 +488,9 @@ const Modal = memo(({
                 </div>
               </div>
 
-              {/* Progress Bar */}
-              <ProgressBar progress={uploadProgress} isActive={isUploading} />
-
-              <div style={{ 
-                display: 'flex', 
-                gap: '12px', 
+              <div style={{
+                display: 'flex',
+                gap: '12px',
                 justifyContent: 'flex-end',
                 flexShrink: 0,
                 paddingTop: '8px',
@@ -565,49 +539,6 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isUploadingLink, setIsUploadingLink] = useState(false);
-  const [isUploadingText, setIsUploadingText] = useState(false);
-  const router = useRouter();
-
-  // Progress bar hook for image uploads (20 seconds)
-  const { 
-    progress: imageProgress, 
-    isActive: imageIsActive, 
-    resetProgressBar: resetImageProgress 
-  } = useProgressBar({
-    duration: 16000, // 16 seconds
-    active: isUploadingImage,
-    onComplete: () => {
-      console.log('Image progress bar completed');
-    }
-  });
-
-  // Progress bar hook for link uploads (10 seconds)
-  const { 
-    progress: linkProgress, 
-    isActive: linkIsActive, 
-    resetProgressBar: resetLinkProgress 
-  } = useProgressBar({
-    duration: 10000, // 10 seconds
-    active: isUploadingLink,
-    onComplete: () => {
-      console.log('Link progress bar completed');
-    }
-  });
-
-  // Progress bar hook for text uploads (10 seconds)
-  const { 
-    progress: textProgress, 
-    isActive: textIsActive, 
-    resetProgressBar: resetTextProgress 
-  } = useProgressBar({
-    duration: 10000, // 10 seconds
-    active: isUploadingText,
-    onComplete: () => {
-      console.log('Text progress bar completed');
-    }
-  });
 
   // Sort recipes by date_added (newest first), handling null dates
   const sortedRecipes = useMemo(() => {
@@ -616,112 +547,100 @@ export default function Home() {
       if (!a.date_added && !b.date_added) return 0;
       if (!a.date_added) return 1;
       if (!b.date_added) return -1;
-      
+
       // Sort by date (newest first)
       return new Date(b.date_added).getTime() - new Date(a.date_added).getTime();
     });
   }, [recipes]);
 
-  useEffect(() => {
-    const fetchRecipes = async () => {
-      try {
-        // Only fetch recipes if we've confirmed authentication state
-        if (!authLoading) {
-          setLoading(true);
-          const fetchedRecipes = await ApiService.getAllRecipes();
-          setRecipes(fetchedRecipes);
-          setError(null);
-        }
-      } catch (err) {
-        console.error('Failed to fetch recipes:', err);
-        // Check if the error is authentication related
-        if (err instanceof Error && err.message === 'Authentication required') {
-          // Don't show error for auth issues - just let the redirect happen
-          // Auth error handled by ApiService redirecting to login
-          setError(null);
-        } else {
-          // setError('Failed to load recipes. Please try again later.');
-          setError(null);
-        }
-      } finally {
-        setLoading(false);
+  const fetchRecipes = useCallback(async () => {
+    try {
+      if (!authLoading) {
+        setLoading(true);
+        const fetchedRecipes = await ApiService.getAllRecipes();
+        setRecipes(fetchedRecipes);
+        setError(null);
       }
-    };
-
-    fetchRecipes();
+    } catch (err) {
+      console.error('Failed to fetch recipes:', err);
+      if (err instanceof Error && err.message === 'Authentication required') {
+        setError(null);
+      } else {
+        setError(null);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [authLoading]);
+
+  useEffect(() => {
+    fetchRecipes();
+  }, [fetchRecipes]);
 
   const handleAddFromLink = useCallback(async () => {
     if (!linkInput.trim()) return;
-    
+
     try {
       setIsSubmitting(true);
-      setIsUploadingLink(true); // Start the link progress bar
-      const newRecipe = await ApiService.addDishFromLink(linkInput.trim());
+      await ApiService.addDishFromLink(linkInput.trim());
       closeModal();
-      router.push(`/recipe/${newRecipe.dish_id}`);
+      // Refresh recipes list to show the new processing item
+      await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from link:', err);
       alert('Failed to add recipe from link. Please try again.');
     } finally {
       setIsSubmitting(false);
-      setIsUploadingLink(false); // Stop the link progress bar
     }
-  }, [linkInput, router]);
+  }, [linkInput, fetchRecipes]);
 
   const handleAddFromText = useCallback(async () => {
     if (!textInput.trim()) return;
-    
+
     try {
       setIsSubmitting(true);
-      setIsUploadingText(true); // Start the text progress bar
-      const newRecipe = await ApiService.addDishFromText(textInput.trim());
+      await ApiService.addDishFromText(textInput.trim());
       closeModal();
-      router.push(`/recipe/${newRecipe.dish_id}`);
+      // Refresh recipes list to show the new processing item
+      await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from text:', err);
       alert('Failed to add recipe from text. Please try again.');
     } finally {
       setIsSubmitting(false);
-      setIsUploadingText(false); // Stop the text progress bar
     }
-  }, [textInput, router]);
+  }, [textInput, fetchRecipes]);
 
   const handleAddFromImage = useCallback(async () => {
     if (!selectedImage) return;
-    
+
     try {
       setIsSubmitting(true);
-      setIsUploadingImage(true); // Start the progress bar
       console.log('Processing image before upload...');
-      // Process the image orientation before uploading
       const processedImage = await processImageOrientation(selectedImage);
-      const newRecipe = await ApiService.addDishFromImage(processedImage);
+      await ApiService.addDishFromImage(processedImage);
       closeModal();
-      router.push(`/recipe/${newRecipe.dish_id}`);
+      // Refresh recipes list to show the new processing item
+      await fetchRecipes();
     } catch (err) {
       console.error('Failed to add recipe from image:', err);
       alert('Failed to add recipe from image. Please try again.');
     } finally {
       setIsSubmitting(false);
-      setIsUploadingImage(false); // Stop the progress bar
     }
-  }, [selectedImage, router]);
+  }, [selectedImage, fetchRecipes]);
 
   const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       try {
         console.log('Processing selected image...');
-        // Process the image orientation for preview
         const processedFile = await processImageOrientation(file);
         setSelectedImage(processedFile);
-        // Create preview URL from processed file
         const previewUrl = URL.createObjectURL(processedFile);
         setImagePreview(previewUrl);
       } catch (error) {
         console.error('Error processing image:', error);
-        // Fallback to original file if processing fails
         setSelectedImage(file);
         const previewUrl = URL.createObjectURL(file);
         setImagePreview(previewUrl);
@@ -735,25 +654,18 @@ export default function Home() {
     setTextInput('');
     setSelectedImage(null);
     setImagePreview(null);
-    setIsUploadingImage(false); // Clear image progress bar state
-    setIsUploadingLink(false); // Clear link progress bar state
-    setIsUploadingText(false); // Clear text progress bar state
-    // Reset all progress bars to ensure they start fresh next time
-    resetImageProgress();
-    resetLinkProgress();
-    resetTextProgress();
-  }, [resetImageProgress, resetLinkProgress, resetTextProgress]);
+  }, []);
 
   if (loading) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
+      <div style={{
+        minHeight: '100vh',
         background: '#ffffff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
         <Navbar />
 
-        <div style={{ 
+        <div style={{
           padding: '40px 20px',
           display: 'flex',
           alignItems: 'center',
@@ -761,8 +673,8 @@ export default function Home() {
           minHeight: 'calc(100vh - 60px)'
         }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ 
-              fontSize: '18px', 
+            <div style={{
+              fontSize: '18px',
               color: '#787774',
               marginBottom: '16px'
             }}>
@@ -776,14 +688,14 @@ export default function Home() {
 
   if (error) {
     return (
-      <div style={{ 
-        minHeight: '100vh', 
+      <div style={{
+        minHeight: '100vh',
         background: '#ffffff',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
         <Navbar />
 
-        <div style={{ 
+        <div style={{
           padding: '40px 20px',
           display: 'flex',
           alignItems: 'center',
@@ -791,14 +703,14 @@ export default function Home() {
           minHeight: 'calc(100vh - 60px)'
         }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ 
-              fontSize: '18px', 
+            <div style={{
+              fontSize: '18px',
               color: '#e74c3c',
               marginBottom: '16px'
             }}>
               {error}
             </div>
-            <button 
+            <button
               onClick={() => window.location.reload()}
               style={{
                 padding: '8px 16px',
@@ -831,9 +743,9 @@ export default function Home() {
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <div style={{ marginBottom: '48px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-              <h1 style={{ 
-                fontSize: '32px', 
-                fontWeight: '600', 
+              <h1 style={{
+                fontSize: '32px',
+                fontWeight: '600',
                 color: '#37352f',
                 margin: '0'
               }}>
@@ -859,10 +771,10 @@ export default function Home() {
                 Add
               </button>
             </div>
-           
+
           </div>
 
-          <div style={{ 
+          <div style={{
             display: 'flex',
             flexDirection: 'column',
             gap: '1px'
@@ -871,8 +783,8 @@ export default function Home() {
               <Link
                 key={recipe.dish_id}
                 href={`/recipe/${recipe.dish_id}`}
-                style={{ 
-                  textDecoration: 'none', 
+                style={{
+                  textDecoration: 'none',
                   color: 'inherit',
                   display: 'block'
                 }}
@@ -902,9 +814,9 @@ export default function Home() {
                         {recipe.emoji}
                       </span>
                     )}
-                    <span style={{ 
-                      fontSize: '16px', 
-                      fontWeight: '500', 
+                    <span style={{
+                      fontSize: '16px',
+                      fontWeight: '500',
                       color: '#37352f',
                       lineHeight: '1.4'
                     }}>
@@ -936,12 +848,6 @@ export default function Home() {
         handleAddFromText={handleAddFromText}
         handleAddFromImage={handleAddFromImage}
         handleImageSelect={handleImageSelect}
-        uploadProgress={imageProgress}
-        isUploading={imageIsActive}
-        linkProgress={linkProgress}
-        linkIsUploading={linkIsActive}
-        textProgress={textProgress}
-        textIsUploading={textIsActive}
       />
     </div>
     </ProtectedRoute>

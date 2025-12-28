@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com"
 
     GOOGLE_CLOUD_PROJECT: str = "personal-ai-264306"
+    DISH_JOBS_SUBSCRIPTION_ID: str = "dish-jobs-sub"
+    DISH_JOBS_TOPIC_ID: str = "dish-jobs"
 
     DOCUMENT_AI_PROCESSOR_ID: str = "ef4832a8654dc6ca"
     DOCUMENT_AI_LOCATION: str = "eu"

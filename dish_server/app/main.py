@@ -34,7 +34,7 @@ async def build_documentai_processor():
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
-    _app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="us-central1")
+    _app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="global")
     _app.state.documentai_processor, _app.state.documentai_client = await build_documentai_processor()
     _app.state.storage_client = storage.Client(project=settings.GOOGLE_CLOUD_PROJECT)
 

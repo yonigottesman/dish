@@ -67,8 +67,9 @@ class ProcessDishCallback:
         self.logger.info("Raw message data: %s", message.data)
         try:
             data = PubSubMessage.model_validate_json(message.data.decode("utf-8"))
-            self.logger.info("Parsed message - dish_id: %s, type: %s, username: %s",
-                           data.dish_id, data.import_type, data.username)
+            self.logger.info(
+                "Parsed message - dish_id: %s, type: %s, username: %s", data.dish_id, data.import_type, data.username
+            )
             self.logger.info("Text data present: %s", data.text_data is not None)
             self.logger.info("Link data present: %s", data.link_data_url is not None)
             self.logger.info("Image data present: %s", data.image_data_gcs_path is not None)
@@ -160,7 +161,7 @@ class ProcessDishCallback:
 
         self.logger.info("[LINK] Calling GenAI...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-flash-preview",
             contents=(
                 "Extract complete recipe from webpage text. Preserve original language. "
                 "Capture ALL details: ingredients with precise measurements/quantities, "
@@ -206,7 +207,7 @@ class ProcessDishCallback:
 
         self.logger.info("[TEXT] Calling GenAI...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-flash-preview",
             contents=(
                 "Extract complete recipe from text. Preserve original language. "
                 "Capture ALL details: ingredients with precise measurements/quantities, "

@@ -12,6 +12,8 @@ export interface Recipe {
   emoji?: string;
   image_ids?: string[];
   language: string;
+  status?: 'processing' | 'completed' | 'failed';
+  error_message?: string;
 }
 
 export interface RecipeMetadata {
@@ -20,6 +22,7 @@ export interface RecipeMetadata {
   description: string;
   emoji?: string;
   date_added?: string;
+  status?: 'processing' | 'completed' | 'failed';
 }
 // User interface
 export interface User {

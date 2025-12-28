@@ -116,3 +116,36 @@ body {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+@keyframes processingSwipe {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.processing-dish {
+  position: relative;
+  overflow: hidden;
+}
+
+.processing-dish::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(55, 53, 47, 0.06) 40%,
+    rgba(55, 53, 47, 0.08) 50%,
+    rgba(55, 53, 47, 0.06) 60%,
+    transparent 100%
+  );
+  animation: processingSwipe 1.2s ease-in-out infinite;
+  pointer-events: none;
+}

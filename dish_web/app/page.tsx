@@ -577,6 +577,53 @@ export default function Home() {
     fetchRecipes();
   }, [fetchRecipes]);
 
+  // Poll processing dishes every 5 seconds to check if they're ready
+  useEffect(() => {
+    const processingDishes = recipes.filter(r => r.status === 'processing');
+
+    if (processingDishes.length === 0) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        // Fetch updated data for each processing dish
+        const updates = await Promise.all(
+          processingDishes.map(async (dish) => {
+            try {
+              const updatedDish = await ApiService.getRecipeById(dish.dish_id);
+              if (updatedDish && updatedDish.status !== 'processing') {
+                // Return updated metadata
+                return {
+                  dish_id: updatedDish.dish_id,
+                  title: updatedDish.title,
+                  description: updatedDish.description,
+                  emoji: updatedDish.emoji,
+                  date_added: dish.date_added, // Keep original date
+                  status: updatedDish.status,
+                } as RecipeMetadata;
+              }
+            } catch (err) {
+              console.error(`Failed to poll dish ${dish.dish_id}:`, err);
+            }
+            return null;
+          })
+        );
+
+        // Update state with any completed dishes
+        const completedUpdates = updates.filter((u): u is RecipeMetadata => u !== null);
+        if (completedUpdates.length > 0) {
+          setRecipes(prev => prev.map(recipe => {
+            const update = completedUpdates.find(u => u.dish_id === recipe.dish_id);
+            return update || recipe;
+          }));
+        }
+      } catch (err) {
+        console.error('Error polling processing dishes:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [recipes]);
+
   const handleAddFromLink = useCallback(async () => {
     if (!linkInput.trim()) return;
 
@@ -779,53 +826,78 @@ export default function Home() {
             flexDirection: 'column',
             gap: '1px'
           }}>
-            {sortedRecipes.map((recipe) => (
-              <Link
-                key={recipe.dish_id}
-                href={`/recipe/${recipe.dish_id}`}
-                style={{
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  display: 'block'
-                }}
-              >
-                <div style={{
-                  padding: '12px 16px',
-                  background: '#ffffff',
-                  border: '1px solid #e9e9e7',
-                  borderRadius: '3px',
-                  transition: 'background-color 0.1s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f7f6f3';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#ffffff';
-                }}
+            {sortedRecipes.map((recipe) => {
+              const isProcessing = recipe.status === 'processing';
+
+              const dishContent = (
+                <div
+                  className={isProcessing ? 'processing-dish' : ''}
+                  style={{
+                    padding: '12px 16px',
+                    background: '#ffffff',
+                    border: '1px solid #e9e9e7',
+                    borderRadius: '3px',
+                    transition: 'background-color 0.1s ease',
+                    cursor: isProcessing ? 'default' : 'pointer',
+                    opacity: isProcessing ? 0.7 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = '#f7f6f3';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isProcessing) {
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                    }
+                  }}
                 >
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px'
                   }}>
-                    {recipe.emoji && (
+                    {recipe.emoji ? (
                       <span style={{ fontSize: '20px' }}>
                         {recipe.emoji}
                       </span>
-                    )}
+                    ) : isProcessing ? (
+                      <span style={{ fontSize: '20px' }}>⏳</span>
+                    ) : null}
                     <span style={{
                       fontSize: '16px',
                       fontWeight: '500',
-                      color: '#37352f',
+                      color: isProcessing ? '#9ca3af' : '#37352f',
                       lineHeight: '1.4'
                     }}>
                       {recipe.title}
                     </span>
                   </div>
                 </div>
-              </Link>
-            ))}
+              );
+
+              if (isProcessing) {
+                return (
+                  <div key={recipe.dish_id} style={{ display: 'block' }}>
+                    {dishContent}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={recipe.dish_id}
+                  href={`/recipe/${recipe.dish_id}`}
+                  style={{
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    display: 'block'
+                  }}
+                >
+                  {dishContent}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>

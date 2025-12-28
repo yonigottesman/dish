@@ -146,10 +146,8 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
     if not token:
         raise NotAuthenticatedException
 
-    logger.info(f"Attempting to decode token: {token[:10]}...")
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        # logger.info(f"Token decoded successfully. Payload: {payload}")
 
         username: str = payload.get("sub")
         if username is None:
@@ -157,7 +155,6 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
             raise NotAuthenticatedException
 
         token_data = TokenData(username=username)
-        logger.info(f"Token contains username: {username}")
     except InvalidTokenError as e:
         logger.error(f"Invalid token error: {str(e)}")
         raise NotAuthenticatedException from e
@@ -167,7 +164,6 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
         logger.info(f"User not found: {token_data.username}")
         raise NotAuthenticatedException
 
-    logger.info(f"User authenticated successfully: {user.username}")
     return user
 
 

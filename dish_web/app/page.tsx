@@ -6,7 +6,6 @@ import { ApiService, RecipeMetadata } from './services/api';
 import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
-import { processImageOrientation } from './utils/imageUtils';
 
 // Modal Component
 const Modal = memo(({
@@ -181,19 +180,13 @@ const Modal = memo(({
                 }}
                 onClick={() => document.getElementById('image-upload')?.click()}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={async (e) => {
+                onDrop={(e) => {
                   e.preventDefault();
                   const files = Array.from(e.dataTransfer.files);
                   const imageFile = files.find(file => file.type.startsWith('image/'));
                   if (imageFile) {
-                    try {
-                      const processedFile = await processImageOrientation(imageFile);
-                      setSelectedImage(processedFile);
-                      setImagePreview(URL.createObjectURL(processedFile));
-                    } catch {
-                      setSelectedImage(imageFile);
-                      setImagePreview(URL.createObjectURL(imageFile));
-                    }
+                    setSelectedImage(imageFile);
+                    setImagePreview(URL.createObjectURL(imageFile));
                   }
                 }}
               >
@@ -410,8 +403,7 @@ export default function Home() {
     if (!selectedImage) return;
     try {
       setIsSubmitting(true);
-      const processedImage = await processImageOrientation(selectedImage);
-      await ApiService.addDishFromImage(processedImage);
+      await ApiService.addDishFromImage(selectedImage);
       closeModal();
       await fetchRecipes();
     } catch (err) {
@@ -422,17 +414,11 @@ export default function Home() {
     }
   }, [selectedImage, fetchRecipes]);
 
-  const handleImageSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      try {
-        const processedFile = await processImageOrientation(file);
-        setSelectedImage(processedFile);
-        setImagePreview(URL.createObjectURL(processedFile));
-      } catch {
-        setSelectedImage(file);
-        setImagePreview(URL.createObjectURL(file));
-      }
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   }, []);
 

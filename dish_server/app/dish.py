@@ -4,7 +4,7 @@ import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from google.cloud import storage
-from PIL import Image
+from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
 
 from app.config import settings
@@ -104,6 +104,15 @@ async def add_dish_from_text(
     return placeholder.model_dump()
 
 
+def process_image_bytes(image_bytes: bytes) -> bytes:
+    pil_image = Image.open(io.BytesIO(image_bytes))
+    pil_image = ImageOps.exif_transpose(pil_image)
+    pil_image = pil_image.convert("RGB")
+    jpeg_buffer = io.BytesIO()
+    pil_image.save(jpeg_buffer, format="JPEG", quality=85)
+    return jpeg_buffer.getvalue()
+
+
 def upload_image_to_gcs(image_bytes: bytes, image_id: str, user: User, storage_client: storage.Client):
     blob_path = f"{user.user_id}/{image_id}"
     blob = storage_client.bucket(settings.GCS_BUCKET_NAME).blob(blob_path)
@@ -136,13 +145,8 @@ async def add_dish_from_image(
     # Generate dish_id
     dish_id = str(uuid.uuid4())
 
-    # Convert image to JPEG (quick operation, keep in endpoint)
     image_bytes = await image.read()
-    pil_image = Image.open(io.BytesIO(image_bytes))
-    jpeg_image = pil_image.convert("RGB")
-    jpeg_buffer = io.BytesIO()
-    jpeg_image.save(jpeg_buffer, format="JPEG")
-    jpeg_bytes = jpeg_buffer.getvalue()
+    jpeg_bytes = process_image_bytes(image_bytes)
 
     # Upload to GCS pending location
     gcs_path = upload_pending_image_to_gcs(jpeg_bytes, dish_id, current_user, storage_client)
@@ -232,12 +236,7 @@ async def save_edit_dish(
         new_image_ids = []
         for image in images:
             image_bytes = await image.read()
-            # Convert to JPEG if needed
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            jpeg_image = pil_image.convert("RGB")
-            jpeg_buffer = io.BytesIO()
-            jpeg_image.save(jpeg_buffer, format="JPEG")
-            jpeg_bytes = jpeg_buffer.getvalue()
+            jpeg_bytes = process_image_bytes(image_bytes)
 
             # Upload to GCS
             image_id = f"{str(uuid.uuid4())}.jpeg"

@@ -7,7 +7,6 @@ import { ApiService, Recipe } from '../../services/api';
 import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
-import { processMultipleImages } from '../../utils/imageUtils';
 
 function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
   imageIds: string[];
@@ -214,19 +213,12 @@ export default function RecipePage() {
     }
   };
 
-  const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length > 0) {
-      try {
-        const processedFiles = await processMultipleImages(files);
-        setNewImages(prev => [...prev, ...processedFiles]);
-        const previews = processedFiles.map(file => URL.createObjectURL(file));
-        setNewImagePreviews(prev => [...prev, ...previews]);
-      } catch {
-        setNewImages(prev => [...prev, ...files]);
-        const previews = files.map(file => URL.createObjectURL(file));
-        setNewImagePreviews(prev => [...prev, ...previews]);
-      }
+      setNewImages(prev => [...prev, ...files]);
+      const previews = files.map(file => URL.createObjectURL(file));
+      setNewImagePreviews(prev => [...prev, ...previews]);
     }
   };
 
@@ -387,18 +379,12 @@ export default function RecipePage() {
                 }}
                 onClick={() => document.getElementById('edit-image-upload')?.click()}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={async (e) => {
+                onDrop={(e) => {
                   e.preventDefault();
                   const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
                   if (files.length > 0) {
-                    try {
-                      const processedFiles = await processMultipleImages(files);
-                      setNewImages(prev => [...prev, ...processedFiles]);
-                      setNewImagePreviews(prev => [...prev, ...processedFiles.map(f => URL.createObjectURL(f))]);
-                    } catch {
-                      setNewImages(prev => [...prev, ...files]);
-                      setNewImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
-                    }
+                    setNewImages(prev => [...prev, ...files]);
+                    setNewImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
                   }
                 }}
               >

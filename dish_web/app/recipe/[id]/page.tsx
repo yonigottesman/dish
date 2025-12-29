@@ -17,10 +17,12 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
 
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: imageIds.length === 1 ? '1fr' : 'repeat(2, 1fr)',
+      display: 'flex',
+      flexDirection: 'column',
       gap: '8px',
       marginBottom: '32px',
+      maxWidth: '400px',
+      margin: '0 auto 32px',
     }}>
       {imageIds.map((imageId, index) => (
         <div
@@ -30,46 +32,16 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
             borderRadius: '6px',
             overflow: 'hidden',
             border: '1px solid #e5e5e5',
-            aspectRatio: '16/10',
-            cursor: 'pointer',
-          }}
-          onClick={async () => {
-            try {
-              const response = await fetch(ApiService.getImageUrl(imageId), {
-                method: 'GET',
-                credentials: 'include',
-              });
-              if (!response.ok) return;
-              const blob = await response.blob();
-              const imageUrl = URL.createObjectURL(blob);
-              const newWindow = window.open();
-              if (newWindow) {
-                newWindow.document.write(`
-                  <html>
-                    <head><title>Recipe Image</title>
-                    <style>body{margin:0;background:#fff;display:flex;justify-content:center;align-items:center;min-height:100vh;}
-                    img{max-width:100%;max-height:100vh;object-fit:contain;}</style></head>
-                    <body><img src="${imageUrl}" /></body>
-                  </html>
-                `);
-                newWindow.document.close();
-              }
-            } catch (error) {
-              console.error('Error opening image:', error);
-            }
           }}
         >
           <img
             src={ApiService.getImageUrl(imageId)}
             alt={`Recipe image ${index + 1}`}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
           />
           {isEditing && onDeleteImage && (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteImage(imageId);
-              }}
+              onClick={() => onDeleteImage(imageId)}
               style={{
                 position: 'absolute',
                 top: '8px',

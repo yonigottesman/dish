@@ -34,8 +34,6 @@ jobs:
           env_vars: |
             GCLOUD_PROJECT_ID=personal-ai-264306
             IS_PRODUCTION=true
-          secrets: |
-            SECRET_KEY=SECRET_KEY:latest
 
       - name: Show deployment URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"

@@ -524,7 +524,7 @@ export default function RecipePage() {
           </div>
 
           {/* Actions */}
-          <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px' }}>
+          <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {!isEditing ? (
               <>
                 <button

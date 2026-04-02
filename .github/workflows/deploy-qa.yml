@@ -57,21 +57,23 @@ jobs:
       - name: Build and deploy Web to Cloud Run
         id: deploy
         run: |
-          # Build with QA server URL via cloudbuild.yaml substitutions
+          # Build with /api/proxy as API URL so browser requests stay same-origin
+          # The proxy route forwards to the backend server-side, avoiding cross-site cookie issues
           gcloud builds submit dish_web/ \
             --config=dish_web/cloudbuild.yaml \
-            --substitutions=_API_URL=${{ env.SERVER_QA_URL }},_IMAGE_NAME=dish-web-qa \
+            --substitutions=_API_URL=/api/proxy,_IMAGE_NAME=dish-web-qa \
             --region=${{ env.REGION }} \
             --default-buckets-behavior=regional-user-owned-bucket
 
-          # Deploy the built image
+          # Deploy the built image with BACKEND_URL for the proxy route
           gcloud run deploy dish-web-qa \
             --image gcr.io/${{ env.PROJECT_ID }}/dish-web-qa \
             --region ${{ env.REGION }} \
             --min-instances=0 \
             --allow-unauthenticated \
             --memory=4Gi \
-            --cpu=4000m
+            --cpu=4000m \
+            --set-env-vars=BACKEND_URL=${{ env.SERVER_QA_URL }}
 
           # Get the service URL
           URL=$(gcloud run services describe dish-web-qa --region=${{ env.REGION }} --format='value(status.url)')

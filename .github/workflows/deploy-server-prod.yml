@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'dish_server/**'
+      - '.github/workflows/deploy-server-prod.yml'
 
 jobs:
   deploy:

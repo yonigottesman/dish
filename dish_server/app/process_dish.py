@@ -123,6 +123,25 @@ class ProcessDishCallback:
             )
             self.logger.info("Recipe marked as failed")
 
+    @staticmethod
+    def _is_instagram_url(url: str) -> bool:
+        return bool(re.match(r"https?://(www\.)?instagram\.com/", url))
+
+    @staticmethod
+    def _extract_instagram_caption(html_page: str) -> str | None:
+        """Extract post caption from Instagram's og:description meta tag."""
+        soup = BeautifulSoup(html_page, "html.parser")
+        og_desc = soup.find("meta", attrs={"property": "og:description"})
+        if og_desc and og_desc.get("content"):
+            content = og_desc["content"]
+            # og:description format: "N likes, N comments - username on DATE: "CAPTION""
+            # Strip the prefix to get just the caption
+            match = re.search(r':\s*"(.+)"', content, re.DOTALL)
+            if match:
+                return match.group(1)
+            return content
+        return None
+
     async def _process_from_link(self, data: PubSubMessage):
         """Process recipe from URL"""
         self.logger.info("[LINK] Starting processing for dish %s", data.dish_id)
@@ -152,11 +171,24 @@ class ProcessDishCallback:
                 html_page = await response.text()
                 self.logger.info("[LINK] Received HTML, length: %d chars", len(html_page))
 
-        self.logger.info("[LINK] Parsing HTML with BeautifulSoup...")
-        soup = BeautifulSoup(html_page, "html.parser")
-        text = soup.get_text()
-        text = textwrap.dedent(text)
-        text = re.sub(r"\n+", "\n", text)
+        if self._is_instagram_url(data.link_data_url):
+            self.logger.info("[LINK] Detected Instagram URL, extracting caption from og:description")
+            caption = self._extract_instagram_caption(html_page)
+            if caption:
+                self.logger.info("[LINK] Extracted Instagram caption, length: %d chars", len(caption))
+                text = caption
+            else:
+                self.logger.warning("[LINK] Failed to extract Instagram caption, falling back to generic extraction")
+                soup = BeautifulSoup(html_page, "html.parser")
+                text = soup.get_text()
+                text = textwrap.dedent(text)
+                text = re.sub(r"\n+", "\n", text)
+        else:
+            self.logger.info("[LINK] Parsing HTML with BeautifulSoup...")
+            soup = BeautifulSoup(html_page, "html.parser")
+            text = soup.get_text()
+            text = textwrap.dedent(text)
+            text = re.sub(r"\n+", "\n", text)
         self.logger.info("[LINK] Extracted text, length: %d chars", len(text))
 
         self.logger.info("[LINK] Calling GenAI...")

@@ -1,0 +1,14 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=${_API_URL}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_IMAGE_NAME}'
+      - '.'
+images:
+  - 'gcr.io/$PROJECT_ID/${_IMAGE_NAME}'
+substitutions:
+  _API_URL: 'https://dish-api.yonigo.co'
+  _IMAGE_NAME: 'dish-web'

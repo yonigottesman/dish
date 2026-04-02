@@ -1,0 +1,41 @@
+name: Deploy Server (Production)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dish_server/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: dish-server
+          source: dish_server/
+          region: europe-west1
+          flags: '--min-instances=0 --allow-unauthenticated --memory=4Gi --cpu=4000m'
+          env_vars: |
+            GCLOUD_PROJECT_ID=personal-ai-264306
+            IS_PRODUCTION=true
+          secrets: |
+            SECRET_KEY=SECRET_KEY:latest
+
+      - name: Show deployment URL
+        run: echo "Deployed to ${{ steps.deploy.outputs.url }}"

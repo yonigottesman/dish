@@ -300,9 +300,8 @@ export class ApiService {
       console.log(`Deleting recipe: ${url}`); // Debug log
 
       const response = await fetch(url, {
-        method: 'DELETE',
-        mode: 'cors',
-        credentials: 'include',
+        method: 'PUT',
+        ...this.defaultOptions,
       });
 
       if (!response.ok) {

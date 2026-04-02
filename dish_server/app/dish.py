@@ -190,7 +190,7 @@ async def get_image(
     return Response(content=blob.download_as_bytes(), media_type="image/jpeg")
 
 
-@router.delete("/delete/{dish_id}")
+@router.put("/delete/{dish_id}")
 async def delete_recipe(
     dish_id: str,
     current_user: CurrentUser,

@@ -1,0 +1,93 @@
+name: Deploy QA
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  PROJECT_ID: personal-ai-264306
+  REGION: europe-west1
+  SERVER_QA_URL: https://dish-server-qa-wkokxyye6a-ew.a.run.app
+
+jobs:
+  deploy-server:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Deploy Server to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: dish-server-qa
+          source: dish_server/
+          region: europe-west1
+          flags: '--min-instances=0 --allow-unauthenticated --memory=4Gi --cpu=4000m'
+          env_vars: |
+            GCLOUD_PROJECT_ID=personal-ai-264306
+            IS_PRODUCTION=true
+          secrets: |
+            SECRET_KEY=SECRET_KEY:latest
+
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+
+  deploy-web:
+    needs: deploy-server
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and deploy Web to Cloud Run
+        id: deploy
+        run: |
+          # Build with QA server URL via cloudbuild.yaml substitutions
+          gcloud builds submit dish_web/ \
+            --config=dish_web/cloudbuild.yaml \
+            --substitutions=_API_URL=${{ env.SERVER_QA_URL }},_IMAGE_NAME=dish-web-qa \
+            --region=${{ env.REGION }} \
+            --default-buckets-behavior=regional-user-owned-bucket
+
+          # Deploy the built image
+          gcloud run deploy dish-web-qa \
+            --image gcr.io/${{ env.PROJECT_ID }}/dish-web-qa \
+            --region ${{ env.REGION }} \
+            --min-instances=0 \
+            --allow-unauthenticated \
+            --memory=4Gi \
+            --cpu=4000m
+
+          # Get the service URL
+          URL=$(gcloud run services describe dish-web-qa --region=${{ env.REGION }} --format='value(status.url)')
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with URLs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 QA deployed!\n- Server: ${{ needs.deploy-server.outputs.url }}\n- Web: ${{ steps.deploy.outputs.url }}`
+            })

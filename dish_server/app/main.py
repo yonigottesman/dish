@@ -93,6 +93,8 @@ production_origins = [
     "https://dish-web-941271455567.europe-west1.run.app",
     "http://dish.yonigo.co",
     "https://dish.yonigo.co",
+    # QA frontend URLs
+    "https://dish-web-qa-wkokxyye6a-ew.a.run.app",
 ]
 
 # Choose origins based on environment

@@ -432,7 +432,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#dbeafe' }}>
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
         <Navbar />
         <div style={{
           maxWidth: '600px',
@@ -450,7 +450,7 @@ export default function Home() {
 
   return (
     <ProtectedRoute>
-      <div style={{ minHeight: '100vh', background: '#dbeafe' }}>
+      <div style={{ minHeight: '100vh', background: '#fff' }}>
         <Navbar />
 
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>

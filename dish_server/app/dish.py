@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from google.cloud import storage
 from PIL import Image, ImageOps
 from pillow_heif import register_heif_opener
+from pydantic import BaseModel
 
 from app.config import settings
 from app.crud import (
@@ -259,6 +260,26 @@ async def save_edit_dish(
 
     await update_recipe(db, current_user, updated_recipe_model)
     return updated_recipe_model.model_dump()
+
+
+class NotesUpdate(BaseModel):
+    notes: str
+
+
+@router.put("/notes/{dish_id}")
+async def update_recipe_notes(
+    dish_id: str,
+    payload: NotesUpdate,
+    current_user: CurrentUser,
+    db: SessionDep,
+):
+    """Update only the notes field of a recipe."""
+    recipe = await get_recipe(db, current_user, dish_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    recipe.notes = payload.notes
+    await update_recipe(db, current_user, recipe)
+    return {"notes": recipe.notes}
 
 
 @router.post("/share/{dish_id}")

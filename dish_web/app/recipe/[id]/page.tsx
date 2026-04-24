@@ -2,11 +2,13 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { ApiService, Recipe } from '../../services/api';
 import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
+
+type NotesStatus = 'saved' | 'saving' | 'dirty' | 'error';
 
 function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
   imageIds: string[];
@@ -82,6 +84,12 @@ export default function RecipePage() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [notesStatus, setNotesStatus] = useState<NotesStatus>('saved');
+  const lastSavedNotesRef = useRef('');
+  const notesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const deleteConfirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const toggleIngredient = (index: number) => {
     const newChecked = new Set(checkedIngredients);
@@ -129,10 +137,22 @@ export default function RecipePage() {
     }
   };
 
+  const clearDeleteConfirmTimer = () => {
+    if (deleteConfirmTimerRef.current) {
+      clearTimeout(deleteConfirmTimerRef.current);
+      deleteConfirmTimerRef.current = null;
+    }
+  };
+
   const handleDelete = async () => {
     if (!recipe) return;
-    const isConfirmed = window.confirm(`Delete "${recipe.title}"? This cannot be undone.`);
-    if (!isConfirmed) return;
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      clearDeleteConfirmTimer();
+      deleteConfirmTimerRef.current = setTimeout(() => setDeleteConfirm(false), 4000);
+      return;
+    }
+    clearDeleteConfirmTimer();
     try {
       setIsDeleting(true);
       await ApiService.deleteRecipe(recipeId);
@@ -140,8 +160,43 @@ export default function RecipePage() {
     } catch (err) {
       console.error('Failed to delete recipe:', err);
       alert('Failed to delete recipe. Please try again.');
+      setDeleteConfirm(false);
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const saveNotesNow = useCallback(async (value: string) => {
+    if (value === lastSavedNotesRef.current) {
+      setNotesStatus('saved');
+      return;
+    }
+    try {
+      setNotesStatus('saving');
+      await ApiService.updateNotes(recipeId, value);
+      lastSavedNotesRef.current = value;
+      setNotesStatus('saved');
+      setRecipe((prev) => (prev ? { ...prev, notes: value } : prev));
+    } catch (err) {
+      console.error('Failed to save notes:', err);
+      setNotesStatus('error');
+    }
+  }, [recipeId]);
+
+  const handleNotesChange = (value: string) => {
+    setNotesDraft(value);
+    setNotesStatus('dirty');
+    if (notesDebounceRef.current) clearTimeout(notesDebounceRef.current);
+    notesDebounceRef.current = setTimeout(() => saveNotesNow(value), 1200);
+  };
+
+  const handleNotesBlur = () => {
+    if (notesDebounceRef.current) {
+      clearTimeout(notesDebounceRef.current);
+      notesDebounceRef.current = null;
+    }
+    if (notesDraft !== lastSavedNotesRef.current) {
+      saveNotesNow(notesDraft);
     }
   };
 
@@ -224,6 +279,10 @@ export default function RecipePage() {
         setLoading(true);
         const fetchedRecipe = await ApiService.getRecipeById(recipeId);
         setRecipe(fetchedRecipe);
+        const initialNotes = fetchedRecipe?.notes ?? '';
+        setNotesDraft(initialNotes);
+        lastSavedNotesRef.current = initialNotes;
+        setNotesStatus('saved');
         setError(null);
       } catch (err) {
         console.error('Failed to fetch recipe:', err);
@@ -234,6 +293,13 @@ export default function RecipePage() {
     };
     if (recipeId) fetchRecipe();
   }, [recipeId]);
+
+  useEffect(() => {
+    return () => {
+      if (notesDebounceRef.current) clearTimeout(notesDebounceRef.current);
+      if (deleteConfirmTimerRef.current) clearTimeout(deleteConfirmTimerRef.current);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -523,6 +589,47 @@ export default function RecipePage() {
             </div>
           </div>
 
+          {/* Notes */}
+          <div style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>Notes</h2>
+              <span
+                style={{
+                  fontSize: '12px',
+                  color: notesStatus === 'error' ? '#c0392b' : '#999',
+                  minHeight: '16px',
+                }}
+              >
+                {notesStatus === 'saving' && 'Saving…'}
+                {notesStatus === 'dirty' && 'Editing…'}
+                {notesStatus === 'saved' && lastSavedNotesRef.current ? 'Saved' : ''}
+                {notesStatus === 'error' && 'Failed to save'}
+              </span>
+            </div>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => handleNotesChange(e.target.value)}
+              onBlur={handleNotesBlur}
+              placeholder="Private notes — tips, variations, what worked last time…"
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '12px 14px',
+                border: '1px solid #e5e5e5',
+                borderRadius: '8px',
+                fontSize: '15px',
+                lineHeight: '1.6',
+                color: '#1a1a1a',
+                background: '#fafafa',
+                outline: 'none',
+                resize: 'vertical',
+                fontFamily: 'inherit',
+                direction: isHebrew ? 'rtl' : 'ltr',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
           {/* Actions */}
           <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {!isEditing ? (
@@ -579,6 +686,27 @@ export default function RecipePage() {
                     {shareLink}
                   </div>
                 )}
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  style={{
+                    padding: '10px 20px',
+                    background: deleteConfirm ? '#c0392b' : '#fff',
+                    color: deleteConfirm ? '#fff' : '#c0392b',
+                    border: `1px solid ${deleteConfirm ? '#c0392b' : '#e5c3c3'}`,
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    marginLeft: 'auto',
+                    minHeight: '44px',
+                    touchAction: 'manipulation',
+                    WebkitTapHighlightColor: 'transparent',
+                    opacity: isDeleting ? 0.5 : 1,
+                  }}
+                >
+                  {isDeleting ? 'Deleting…' : deleteConfirm ? 'Tap again to confirm' : 'Delete'}
+                </button>
               </>
             ) : (
               <>
@@ -613,23 +741,6 @@ export default function RecipePage() {
                   }}
                 >
                   {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={isSaving || isDeleting}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#fff',
-                    color: '#999',
-                    border: '1px solid #e5e5e5',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                    opacity: (isSaving || isDeleting) ? 0.5 : 1,
-                  }}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
                 </button>
               </>
             )}

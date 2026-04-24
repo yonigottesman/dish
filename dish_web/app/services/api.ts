@@ -12,6 +12,7 @@ export interface Recipe {
   emoji?: string;
   image_ids?: string[];
   language: string;
+  notes?: string;
   status?: 'processing' | 'completed' | 'failed';
   error_message?: string;
 }
@@ -288,6 +289,27 @@ export class ApiService {
       console.error(`Error saving edited recipe with ID ${dishId}:`, error);
       console.error(`URL attempted: ${buildApiUrl(API_CONFIG.ENDPOINTS.SAVE_EDIT, dishId)}`);
       throw error;
+    }
+  }
+
+  /**
+   * Update only the notes field of a recipe
+   */
+  static async updateNotes(dishId: string, notes: string): Promise<void> {
+    const url = buildApiUrl(API_CONFIG.ENDPOINTS.UPDATE_NOTES, dishId);
+    const response = await fetch(url, {
+      method: 'PUT',
+      ...this.defaultOptions,
+      body: JSON.stringify({ notes }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        storeUser(null);
+        window.location.href = '/login';
+        throw new Error('Authentication required');
+      }
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
   }
 

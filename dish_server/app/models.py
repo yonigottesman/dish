@@ -57,6 +57,7 @@ class RecipeModel(BaseModel):
     link: str | None = None
     emoji: str | None = None
     language: str = "en"
+    notes: str | None = None
     status: DishStatus | None = None
     error_message: str | None = None
 

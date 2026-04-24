@@ -686,27 +686,6 @@ export default function RecipePage() {
                     {shareLink}
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
-                  style={{
-                    padding: '10px 20px',
-                    background: deleteConfirm ? '#c0392b' : '#fff',
-                    color: deleteConfirm ? '#fff' : '#c0392b',
-                    border: `1px solid ${deleteConfirm ? '#c0392b' : '#e5c3c3'}`,
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                    minHeight: '44px',
-                    touchAction: 'manipulation',
-                    WebkitTapHighlightColor: 'transparent',
-                    opacity: isDeleting ? 0.5 : 1,
-                  }}
-                >
-                  {isDeleting ? 'Deleting…' : deleteConfirm ? 'Tap again to confirm' : 'Delete'}
-                </button>
               </>
             ) : (
               <>

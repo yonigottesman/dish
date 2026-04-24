@@ -740,7 +740,7 @@ export default function RecipePage() {
                     opacity: (isSaving || isDeleting) ? 0.5 : 1,
                   }}
                 >
-                  {isDeleting ? 'Deleting…' : deleteConfirm ? 'Tap again to confirm' : 'Delete'}
+                  {isDeleting ? 'Deleting…' : deleteConfirm ? 'Confirm' : 'Delete'}
                 </button>
               </>
             )}

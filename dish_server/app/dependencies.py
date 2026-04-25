@@ -48,8 +48,8 @@ def get_documentai_client(request: Request) -> Generator[documentai_v1.DocumentP
     yield request.app.state.documentai_client
 
 
-def get_documentai_processor(request: Request) -> Generator[documentai_v1.Processor, None, None]:
-    yield request.app.state.documentai_processor
+def get_documentai_processor_name(request: Request) -> Generator[str, None, None]:
+    yield request.app.state.documentai_processor_name
 
 
 def get_storage_client(request: Request) -> Generator[storage.Client, None, None]:
@@ -60,7 +60,7 @@ def get_pubsub_publisher(request: Request) -> Generator[pubsub.PublisherClient, 
     yield request.app.state.pubsub_publisher
 
 
-DocumentaiProcessorDep = Annotated[documentai_v1.Processor, Depends(get_documentai_processor)]
+DocumentaiProcessorNameDep = Annotated[str, Depends(get_documentai_processor_name)]
 DocumentaiClientDep = Annotated[documentai_v1.DocumentProcessorServiceAsyncClient, Depends(get_documentai_client)]
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]

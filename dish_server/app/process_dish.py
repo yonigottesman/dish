@@ -47,7 +47,7 @@ class ProcessDishCallback:
         logger: logging.Logger,
         storage_client: storage.Client,
         genai_client: genai.Client,
-        documentai_processor: documentai_v1.Processor,
+        documentai_processor_name: str,
         documentai_client: documentai_v1.DocumentProcessorServiceAsyncClient,
         db: firestore.AsyncClient,
         loop: asyncio.AbstractEventLoop,
@@ -55,7 +55,7 @@ class ProcessDishCallback:
         self.logger = logger
         self.storage_client = storage_client
         self.genai_client = genai_client
-        self.documentai_processor = documentai_processor
+        self.documentai_processor_name = documentai_processor_name
         self.documentai_client = documentai_client
         self.db = db
         self.loop = loop
@@ -298,7 +298,7 @@ class ProcessDishCallback:
             mime_type="image/jpeg",
         )
         request = documentai_v1.ProcessRequest(
-            name=self.documentai_processor.name,
+            name=self.documentai_processor_name,
             raw_document=raw_document,
         )
         result = await self.documentai_client.process_document(request=request)

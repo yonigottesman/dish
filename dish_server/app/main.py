@@ -18,24 +18,20 @@ from app.process_dish import ProcessDishCallback
 # logging.basicConfig(level=logging.INFO)
 
 
-async def build_documentai_processor():
-    project_id = settings.GOOGLE_CLOUD_PROJECT
+def build_documentai_client():
     opts = ClientOptions(api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com")
     client = documentai_v1.DocumentProcessorServiceAsyncClient(client_options=opts)
-    full_processor_name = client.processor_path(
-        project_id, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
+    processor_name = client.processor_path(
+        settings.GOOGLE_CLOUD_PROJECT, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
     )
-    request = documentai_v1.GetProcessorRequest(name=full_processor_name)
-    processor = await client.get_processor(request=request)
-
-    return processor, client
+    return processor_name, client
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     _app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
     _app.state.genai_client = genai.Client(vertexai=True, project="personal-ai-264306", location="global")
-    _app.state.documentai_processor, _app.state.documentai_client = await build_documentai_processor()
+    _app.state.documentai_processor_name, _app.state.documentai_client = build_documentai_client()
     _app.state.storage_client = storage.Client(project=settings.GOOGLE_CLOUD_PROJECT)
 
     _app.state.pubsub_publisher = pubsub.PublisherClient()
@@ -53,7 +49,7 @@ async def lifespan(_app: FastAPI):
             logger=get_logger(),
             storage_client=_app.state.storage_client,
             genai_client=_app.state.genai_client,
-            documentai_processor=_app.state.documentai_processor,
+            documentai_processor_name=_app.state.documentai_processor_name,
             documentai_client=_app.state.documentai_client,
             db=_app.state.db,
             loop=loop,

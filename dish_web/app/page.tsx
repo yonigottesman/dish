@@ -365,19 +365,11 @@ export default function Home() {
           {/* Header */}
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end',
             alignItems: 'flex-end',
             marginBottom: '24px',
             gap: '16px',
           }}>
-            <div>
-              <h1 className="page-title">Recipes</h1>
-              {!loading && recipes.length > 0 && (
-                <p className="muted" style={{ margin: '4px 0 0', fontSize: '14px' }}>
-                  {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'} saved
-                </p>
-              )}
-            </div>
             <button onClick={() => setShowModal(true)} className="btn btn-accent">
               <span style={{ fontSize: '16px', lineHeight: 1, marginTop: '-1px' }}>+</span> Add recipe
             </button>

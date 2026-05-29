@@ -33,11 +33,18 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
             boxShadow: 'var(--shadow-sm)',
           }}
         >
-          <img
-            src={ApiService.getImageUrl(imageId)}
-            alt={`Recipe image ${index + 1}`}
-            style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
-          />
+          <a
+            href={ApiService.getImageUrl(imageId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'block' }}
+          >
+            <img
+              src={ApiService.getImageUrl(imageId)}
+              alt={`Recipe image ${index + 1}`}
+              style={{ display: 'block', maxWidth: '100%', height: 'auto', cursor: 'pointer' }}
+            />
+          </a>
           {isEditing && onDeleteImage && (
             <button
               onClick={() => onDeleteImage(imageId)}

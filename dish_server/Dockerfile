@@ -9,7 +9,9 @@ COPY app $APP_HOME/app
 
 
 WORKDIR $APP_HOME
-RUN uv sync
+# --compile-bytecode precompiles .pyc at build time so the first import of the
+# (heavy) Google Cloud libraries on a cold start doesn't pay compilation cost.
+RUN uv sync --compile-bytecode
 
 EXPOSE 8080
 CMD ["uv", "run", "fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8080"]

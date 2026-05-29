@@ -48,6 +48,89 @@ docker run -p 8000:8080 dish_server
 docker build -f dish_web/Dockerfile -t dish_web dish_web/
 ```
 
+## Running the Full Stack Locally with Docker
+
+This is the verified, end-to-end recipe for building and running both containers
+locally and signing in. It assumes Docker Desktop is running and the gcloud CLI is
+authenticated (`gcloud auth list` shows the desired account, and
+`~/.config/gcloud/application_default_credentials.json` exists — created via
+`gcloud auth application-default login`).
+
+### 1. Build both images
+The frontend bakes `NEXT_PUBLIC_API_URL` at build time (its default points at the
+production API), so it MUST be built with the local backend URL:
+```bash
+docker build -f dish_server/Dockerfile -t dish_server dish_server/
+docker build -f dish_web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=http://localhost:8000 -t dish_web dish_web/
+```
+
+### 2. Run the backend (with Google Cloud credentials mounted)
+The backend talks to Firestore, Vertex AI, Document AI, Storage, and Pub/Sub, so it
+needs Application Default Credentials. Mount the host ADC file into the container and
+point `GOOGLE_APPLICATION_CREDENTIALS` at it. No extra service-account key is needed —
+the existing user ADC (an `authorized_user` credential with a quota project) is enough.
+```bash
+docker rm -f dish_backend 2>/dev/null
+docker run -d --name dish_backend \
+  -p 8000:8080 \
+  -v "$HOME/.config/gcloud/application_default_credentials.json:/tmp/adc.json:ro" \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/tmp/adc.json \
+  -e GOOGLE_CLOUD_PROJECT=personal-ai-264306 \
+  -e IS_PRODUCTION=false \
+  dish_server
+```
+Defaults in `app/config.py` (project, Firestore DB `dishdbeu`, Document AI processor,
+GCS bucket, OAuth client ID) are correct for local dev, so only the env vars above are
+required. Verify with: `curl -i http://localhost:8000/login` (expect HTTP 200).
+
+### 3. Run the frontend
+```bash
+docker rm -f dish_frontend 2>/dev/null
+docker run -d --name dish_frontend -p 3000:3000 dish_web
+```
+Open http://localhost:3000 — it redirects to `/login`.
+
+### 4. Logging in with Google
+Auth uses Google Identity Services (browser) → backend `/auth/google`, which verifies
+the ID token against `GOOGLE_CLIENT_ID` and sets an `access-token` cookie.
+
+- **Manual:** click "Continue with Google" and pick your account. Note the button uses
+  Google's `renderButton` flow, which opens the account chooser in a SEPARATE popup
+  window (cross-origin `accounts.google.com`) — this is outside any single-tab browser
+  automation and must be clicked by a human (unless One Tap auto-selects an existing
+  session).
+- **Fully automated (no click), via One Tap in the page console** — works when the
+  browser already has a single, consented Google session for this app:
+  ```js
+  google.accounts.id.initialize({
+    client_id: "941271455567-19rfpkdkgrvjrla9uf56l2e4tf6j29gh.apps.googleusercontent.com",
+    auto_select: true,
+    callback: async (resp) => {
+      const r = await fetch("http://localhost:8000/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ credential: resp.credential }),
+      });
+      const data = await r.json();
+      if (data.user) localStorage.setItem("dish_auth_user", JSON.stringify(data.user));
+      location.href = "/";
+    },
+  });
+  google.accounts.id.prompt();
+  ```
+  On success the prompt resolves with `dismissedReason: "credential_returned"` and the
+  backend logs `Google authentication successful for user <email>`. First-ever consent
+  for the app still requires a one-time manual approval in Google's window.
+
+### Useful commands
+```bash
+docker ps --filter name=dish_              # status of both containers
+docker logs dish_backend | tail -30        # backend startup + auth logs
+docker logs dish_frontend | tail -10       # Next.js logs
+docker rm -f dish_backend dish_frontend    # stop and clean up
+```
+
 ## Architecture
 
 ### Backend Structure

@@ -13,7 +13,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 
 from app.config import settings
 from app.crud import get_user
-from app.models import TokenData, User
+from app.models import User
 
 
 def get_logger() -> logging.Logger:
@@ -153,15 +153,23 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
         if username is None:
             logger.warning("Token payload missing 'sub' field")
             raise NotAuthenticatedException
-
-        token_data = TokenData(username=username)
     except InvalidTokenError as e:
         logger.error(f"Invalid token error: {str(e)}")
         raise NotAuthenticatedException from e
 
-    user = await get_user(db, username=token_data.username)
+    # Fast path: the signed token already carries the full identity, so we can
+    # authorize without a Firestore read. This removes one ~Firestore round trip
+    # from every authenticated request (the user's own namespace is keyed by
+    # username, which the verified token attests to).
+    uid = payload.get("uid")
+    if uid:
+        return User(user_id=uid, username=username, email=payload.get("email"), full_name=payload.get("name"))
+
+    # Legacy token issued before identity claims were embedded: fall back to a
+    # one-time lookup. The user re-acquires a fast-path token on next login.
+    user = await get_user(db, username=username)
     if user is None:
-        logger.info(f"User not found: {token_data.username}")
+        logger.info(f"User not found: {username}")
         raise NotAuthenticatedException
 
     return user

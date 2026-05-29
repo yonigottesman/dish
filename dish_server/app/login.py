@@ -19,6 +19,21 @@ router = APIRouter(
 )
 
 
+def _identity_claims(user: UserInDB) -> dict:
+    """JWT claims carrying the full user identity.
+
+    Embedding user_id/email/name lets get_current_user reconstruct the User
+    without a per-request Firestore read (the dominant cost on authenticated
+    GETs). See app.dependencies.get_current_user.
+    """
+    return {
+        "sub": user.username,
+        "uid": user.user_id,
+        "email": user.email,
+        "name": user.full_name,
+    }
+
+
 @router.post("/token")
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -33,7 +48,7 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+    access_token = create_access_token(data=_identity_claims(user), expires_delta=access_token_expires)
 
     # Create a response with both token and user info
     response_data = {
@@ -84,7 +99,7 @@ async def signup(user_data: UserCreateRequest, db: SessionDep, logger: LoggerDep
 
     # Create access token for the new user
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(data={"sub": user_data.username}, expires_delta=access_token_expires)
+    access_token = create_access_token(data=_identity_claims(user), expires_delta=access_token_expires)
 
     # Create a response object with token and user info
     response_data = {
@@ -138,7 +153,8 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
         # Use email as username for Google users
         username = email
 
-        if not await get_user(db, username):
+        user = await get_user(db, username)
+        if user is None:
             user = UserInDB(
                 user_id=str(uuid.uuid4()),
                 username=username,
@@ -153,7 +169,7 @@ async def google_auth(token_request: GoogleTokenRequest, db: SessionDep, logger:
 
         # Create access token
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(data={"sub": username}, expires_delta=access_token_expires)
+        access_token = create_access_token(data=_identity_claims(user), expires_delta=access_token_expires)
 
         # Create response
         response_data = {

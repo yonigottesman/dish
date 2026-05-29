@@ -3,9 +3,21 @@
 import Link from 'next/link';
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { ApiService, RecipeMetadata } from './services/api';
-import { useAuth } from './context/auth-context';
 import ProtectedRoute from './components/protected-route';
 import Navbar from './components/navbar';
+
+function relativeDate(iso?: string): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const days = Math.floor((Date.now() - then) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 
 // Modal Component
 const Modal = memo(({
@@ -47,47 +59,36 @@ const Modal = memo(({
 }) => {
   if (!showModal) return null;
 
-  const tabs = ['text', 'link', 'image'] as const;
+  const tabs = [
+    { key: 'text', label: 'Paste text' },
+    { key: 'link', label: 'From link' },
+    { key: 'image', label: 'From photo' },
+  ] as const;
+
+  const canSubmit =
+    !isSubmitting &&
+    ((activeTab === 'text' && textInput.trim()) ||
+      (activeTab === 'link' && linkInput.trim()) ||
+      (activeTab === 'image' && selectedImage));
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      padding: '20px',
-    }}>
-      <div style={{
-        backgroundColor: '#fff',
-        borderRadius: '8px',
-        width: '100%',
-        maxWidth: '500px',
-        border: '1px solid #e5e5e5',
-      }}>
+    <div className="modal-overlay" onClick={closeModal}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={{
-          padding: '20px',
-          borderBottom: '1px solid #e5e5e5',
+          padding: '18px 20px',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          <span style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a' }}>Add Recipe</span>
+          <span style={{ fontSize: '17px', fontWeight: 650, letterSpacing: '-0.01em' }}>Add a recipe</span>
           <button
             onClick={closeModal}
+            aria-label="Close"
             style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '18px',
-              cursor: 'pointer',
-              color: '#999',
-              padding: '4px 8px',
+              background: 'none', border: 'none', fontSize: '22px', lineHeight: 1,
+              cursor: 'pointer', color: 'var(--ink-muted)', padding: '2px 6px',
             }}
           >
             ×
@@ -95,56 +96,30 @@ const Modal = memo(({
         </div>
 
         {/* Tabs */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid #e5e5e5',
-        }}>
+        <div className="tabs">
           {tabs.map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                border: 'none',
-                background: 'transparent',
-                color: activeTab === tab ? '#1a1a1a' : '#999',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: activeTab === tab ? '500' : '400',
-                textTransform: 'capitalize',
-                borderBottom: activeTab === tab ? '2px solid #1a1a1a' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`tab ${activeTab === tab.key ? 'tab-active' : ''}`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
 
         {/* Content */}
-        <div style={{ padding: '16px 20px 20px' }}>
+        <div style={{ padding: '20px' }}>
           {activeTab === 'text' && (
-            <div>
-              <textarea
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Paste your recipe text here..."
-                style={{
-                  width: '100%',
-                  height: '150px',
-                  padding: '12px',
-                  border: '1px solid #e5e5e5',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  resize: 'none',
-                  fontFamily: 'inherit',
-                  outline: 'none',
-                  color: '#1a1a1a',
-                }}
-                disabled={isSubmitting}
-              />
-            </div>
+            <textarea
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Paste a recipe here — ingredients, steps, anything. We'll tidy it up."
+              className="textarea"
+              style={{ height: '160px' }}
+              disabled={isSubmitting}
+              autoFocus
+            />
           )}
 
           {activeTab === 'link' && (
@@ -154,95 +129,59 @@ const Modal = memo(({
                 value={linkInput}
                 onChange={(e) => setLinkInput(e.target.value)}
                 placeholder="https://example.com/recipe"
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  border: '1px solid #e5e5e5',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  outline: 'none',
-                  color: '#1a1a1a',
-                }}
+                className="input"
                 disabled={isSubmitting}
+                autoFocus
               />
+              <p className="muted" style={{ fontSize: '13px', margin: '10px 2px 0' }}>
+                Paste any recipe URL and we&apos;ll extract it for you.
+              </p>
             </div>
           )}
 
           {activeTab === 'image' && (
-            <div>
-              <div
-                style={{
-                  border: '2px dashed #e5e5e5',
-                  borderRadius: '8px',
-                  padding: '32px 24px',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                }}
-                onClick={() => document.getElementById('image-upload')?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const files = Array.from(e.dataTransfer.files);
-                  const imageFile = files.find(file => file.type.startsWith('image/'));
-                  if (imageFile) {
-                    setSelectedImage(imageFile);
-                    setImagePreview(URL.createObjectURL(imageFile));
-                  }
-                }}
-              >
-                <input
-                  id="image-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  style={{ display: 'none' }}
-                  disabled={isSubmitting}
-                />
-                {imagePreview ? (
-                  <div>
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      style={{
-                        maxWidth: '100px',
-                        maxHeight: '80px',
-                        borderRadius: '4px',
-                        marginBottom: '8px',
-                      }}
-                    />
-                    <div style={{ fontSize: '13px', color: '#666' }}>
-                      {selectedImage?.name}
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ color: '#999', fontSize: '14px' }}>
-                    Drop image or click to upload
-                  </div>
-                )}
-              </div>
+            <div
+              className="dropzone"
+              onClick={() => document.getElementById('image-upload')?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const imageFile = Array.from(e.dataTransfer.files).find(f => f.type.startsWith('image/'));
+                if (imageFile) {
+                  setSelectedImage(imageFile);
+                  setImagePreview(URL.createObjectURL(imageFile));
+                }
+              }}
+            >
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleImageSelect}
+                style={{ display: 'none' }}
+                disabled={isSubmitting}
+              />
+              {imagePreview ? (
+                <div>
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    style={{ maxWidth: '120px', maxHeight: '90px', borderRadius: '8px', marginBottom: '10px' }}
+                  />
+                  <div style={{ fontSize: '13px', color: 'var(--ink-secondary)' }}>{selectedImage?.name}</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📷</div>
+                  Drop a photo here, or click to browse
+                </div>
+              )}
             </div>
           )}
 
           {/* Actions */}
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '20px',
-          }}>
-            <button
-              onClick={closeModal}
-              disabled={isSubmitting}
-              style={{
-                padding: '8px 16px',
-                border: '1px solid #e5e5e5',
-                background: '#fff',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#6b6b6b',
-              }}
-            >
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button onClick={closeModal} disabled={isSubmitting} className="btn btn-ghost">
               Cancel
             </button>
             <button
@@ -251,29 +190,10 @@ const Modal = memo(({
                 activeTab === 'link' ? handleAddFromLink :
                 handleAddFromImage
               }
-              disabled={
-                isSubmitting ||
-                (activeTab === 'text' && !textInput.trim()) ||
-                (activeTab === 'link' && !linkInput.trim()) ||
-                (activeTab === 'image' && !selectedImage)
-              }
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                background: '#1a1a1a',
-                color: '#fff',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                opacity: (
-                  isSubmitting ||
-                  (activeTab === 'text' && !textInput.trim()) ||
-                  (activeTab === 'link' && !linkInput.trim()) ||
-                  (activeTab === 'image' && !selectedImage)
-                ) ? 0.4 : 1,
-              }}
+              disabled={!canSubmit}
+              className="btn btn-accent"
             >
-              {isSubmitting ? 'Adding...' : 'Add Recipe'}
+              {isSubmitting ? <><span className="spinner" /> Adding…</> : 'Add recipe'}
             </button>
           </div>
         </div>
@@ -284,11 +204,21 @@ const Modal = memo(({
 
 Modal.displayName = 'Modal';
 
+function RecipeRowSkeleton() {
+  return (
+    <div className="row" style={{ cursor: 'default' }}>
+      <div className="skeleton" style={{ width: '38px', height: '38px', borderRadius: '10px' }} />
+      <div style={{ flex: 1 }}>
+        <div className="skeleton" style={{ height: '13px', width: '52%', marginBottom: '8px' }} />
+        <div className="skeleton" style={{ height: '10px', width: '28%' }} />
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [recipes, setRecipes] = useState<RecipeMetadata[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'text' | 'link' | 'image'>('text');
   const [linkInput, setLinkInput] = useState('');
@@ -308,19 +238,15 @@ export default function Home() {
 
   const fetchRecipes = useCallback(async () => {
     try {
-      if (!authLoading) {
-        setLoading(true);
-        const fetchedRecipes = await ApiService.getAllRecipes();
-        setRecipes(fetchedRecipes);
-        setError(null);
-      }
+      setLoading(true);
+      const fetchedRecipes = await ApiService.getAllRecipes();
+      setRecipes(fetchedRecipes);
     } catch (err) {
       console.error('Failed to fetch recipes:', err);
-      setError(null);
     } finally {
       setLoading(false);
     }
-  }, [authLoading]);
+  }, []);
 
   useEffect(() => {
     fetchRecipes();
@@ -369,6 +295,14 @@ export default function Home() {
     return () => clearInterval(pollInterval);
   }, [recipes]);
 
+  const closeModal = useCallback(() => {
+    setShowModal(false);
+    setLinkInput('');
+    setTextInput('');
+    setSelectedImage(null);
+    setImagePreview(null);
+  }, []);
+
   const handleAddFromLink = useCallback(async () => {
     if (!linkInput.trim()) return;
     try {
@@ -382,7 +316,7 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [linkInput, fetchRecipes]);
+  }, [linkInput, fetchRecipes, closeModal]);
 
   const handleAddFromText = useCallback(async () => {
     if (!textInput.trim()) return;
@@ -397,7 +331,7 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [textInput, fetchRecipes]);
+  }, [textInput, fetchRecipes, closeModal]);
 
   const handleAddFromImage = useCallback(async () => {
     if (!selectedImage) return;
@@ -412,7 +346,7 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedImage, fetchRecipes]);
+  }, [selectedImage, fetchRecipes, closeModal]);
 
   const handleImageSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -422,111 +356,80 @@ export default function Home() {
     }
   }, []);
 
-  const closeModal = useCallback(() => {
-    setShowModal(false);
-    setLinkInput('');
-    setTextInput('');
-    setSelectedImage(null);
-    setImagePreview(null);
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
-        <Navbar />
-        <div style={{
-          maxWidth: '600px',
-          margin: '0 auto',
-          padding: '60px 20px',
-          textAlign: 'center',
-          color: '#999',
-          fontSize: '14px',
-        }}>
-          Loading...
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ProtectedRoute>
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
+      <div style={{ minHeight: '100vh' }}>
         <Navbar />
 
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
+        <div className="container" style={{ padding: '40px 20px 80px' }}>
           {/* Header */}
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '32px',
+            alignItems: 'flex-end',
+            marginBottom: '24px',
+            gap: '16px',
           }}>
-            <h1 style={{
-              fontSize: '32px',
-              fontWeight: '600',
-              color: '#1a1a1a',
-              margin: 0,
-            }}>
-              Recipes
-            </h1>
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                padding: '8px 16px',
-                background: '#1a1a1a',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '14px',
-                cursor: 'pointer',
-              }}
-            >
-              + Add
+            <div>
+              <h1 className="page-title">Recipes</h1>
+              {!loading && recipes.length > 0 && (
+                <p className="muted" style={{ margin: '4px 0 0', fontSize: '14px' }}>
+                  {recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'} saved
+                </p>
+              )}
+            </div>
+            <button onClick={() => setShowModal(true)} className="btn btn-accent">
+              <span style={{ fontSize: '16px', lineHeight: 1, marginTop: '-1px' }}>+</span> Add recipe
             </button>
           </div>
 
           {/* Recipe List */}
-          <div style={{
-            background: '#fff',
-            border: '1px solid #e5e5e5',
-            borderRadius: '8px',
-            overflow: 'hidden',
-          }}>
-            {sortedRecipes.length === 0 ? (
-              <div style={{
-                padding: '40px 20px',
-                textAlign: 'center',
-                color: '#999',
-                fontSize: '14px',
-              }}>
-                No recipes yet
-              </div>
-            ) : (
-              sortedRecipes.map((recipe, index) => {
+          {loading ? (
+            <div className="card" style={{ overflow: 'hidden' }}>
+              {Array.from({ length: 6 }).map((_, i) => <RecipeRowSkeleton key={i} />)}
+            </div>
+          ) : sortedRecipes.length === 0 ? (
+            <div className="card fade-up" style={{ padding: '56px 24px', textAlign: 'center' }}>
+              <div style={{ fontSize: '40px', marginBottom: '12px' }}>🍳</div>
+              <h2 style={{ fontSize: '17px', fontWeight: 600, margin: '0 0 6px' }}>No recipes yet</h2>
+              <p className="muted" style={{ fontSize: '14px', margin: '0 0 20px' }}>
+                Add one from a link, a photo, or by pasting text.
+              </p>
+              <button onClick={() => setShowModal(true)} className="btn btn-accent">
+                <span style={{ fontSize: '16px', lineHeight: 1, marginTop: '-1px' }}>+</span> Add your first recipe
+              </button>
+            </div>
+          ) : (
+            <div className="card fade-up" style={{ overflow: 'hidden' }}>
+              {sortedRecipes.map((recipe) => {
                 const isProcessing = recipe.status === 'processing';
-                const isLast = index === sortedRecipes.length - 1;
+                const date = relativeDate(recipe.date_added);
 
                 const content = (
-                  <div
-                    className={isProcessing ? 'processing-dish' : ''}
-                    style={{
-                      padding: '14px 16px',
-                      borderBottom: isLast ? 'none' : '1px solid #e5e5e5',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      cursor: isProcessing ? 'default' : 'pointer',
-                    }}
-                  >
-                    {recipe.emoji && (
-                      <span style={{ fontSize: '20px' }}>{recipe.emoji}</span>
+                  <div className={`row ${isProcessing ? 'processing-dish' : ''}`} style={{ cursor: isProcessing ? 'default' : 'pointer' }}>
+                    <div className="row-emoji">{recipe.emoji || '🍽️'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '15.5px',
+                        fontWeight: 500,
+                        color: isProcessing ? 'var(--ink-muted)' : 'var(--ink)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      }}>
+                        {recipe.title}
+                      </div>
+                      {isProcessing ? (
+                        <div className="muted" style={{ fontSize: '12.5px', marginTop: '2px' }}>Processing…</div>
+                      ) : date ? (
+                        <div className="muted" style={{ fontSize: '12.5px', marginTop: '2px' }}>{date}</div>
+                      ) : null}
+                    </div>
+                    {!isProcessing && (
+                      <span className="row-chevron" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </span>
                     )}
-                    <span style={{
-                      fontSize: '16px',
-                      color: isProcessing ? '#999' : '#1a1a1a',
-                    }}>
-                      {recipe.title}
-                    </span>
                   </div>
                 );
 
@@ -543,9 +446,9 @@ export default function Home() {
                     {content}
                   </Link>
                 );
-              })
-            )}
-          </div>
+              })}
+            </div>
+          )}
         </div>
 
         <Modal

@@ -4,7 +4,6 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { ApiService, Recipe } from '../../services/api';
-import { useAuth } from '../../context/auth-context';
 import ProtectedRoute from '../../components/protected-route';
 import Navbar from '../../components/navbar';
 
@@ -19,19 +18,19 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
-      marginBottom: '32px',
-      maxWidth: '400px',
-      margin: '0 auto 32px',
+      gap: '10px',
+      marginBottom: '36px',
+      maxWidth: '440px',
     }}>
       {imageIds.map((imageId, index) => (
         <div
           key={imageId}
           style={{
             position: 'relative',
-            borderRadius: '6px',
+            borderRadius: 'var(--radius)',
             overflow: 'hidden',
-            border: '1px solid #e5e5e5',
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
           }}
         >
           <img
@@ -42,18 +41,12 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
           {isEditing && onDeleteImage && (
             <button
               onClick={() => onDeleteImage(imageId)}
+              aria-label="Remove image"
               style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                width: '24px',
-                height: '24px',
-                borderRadius: '50%',
-                background: '#1a1a1a',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
+                position: 'absolute', top: '10px', right: '10px',
+                width: '28px', height: '28px', borderRadius: '999px',
+                background: 'rgba(27,26,24,0.7)', color: '#fff', border: 'none',
+                cursor: 'pointer', fontSize: '15px', backdropFilter: 'blur(4px)',
               }}
             >
               ×
@@ -68,7 +61,6 @@ function RecipeImages({ imageIds, isEditing, onDeleteImage }: {
 export default function RecipePage() {
   const params = useParams();
   const recipeId = params.id as string;
-  const { user } = useAuth();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [editedRecipe, setEditedRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,6 +72,7 @@ export default function RecipePage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [newImages, setNewImages] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
 
@@ -159,6 +152,14 @@ export default function RecipePage() {
     }
   };
 
+  const copyShareLink = () => {
+    if (!shareLink) return;
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }).catch(() => {});
+  };
+
   const updateEditedField = (field: keyof Recipe, value: any) => {
     if (editedRecipe) setEditedRecipe({ ...editedRecipe, [field]: value });
   };
@@ -235,51 +236,67 @@ export default function RecipePage() {
     if (recipeId) fetchRecipe();
   }, [recipeId]);
 
+  const backLink = (
+    <Link href="/" style={{
+      display: 'inline-flex', alignItems: 'center', gap: '6px',
+      color: 'var(--ink-secondary)', fontSize: '14px', textDecoration: 'none', marginBottom: '24px',
+    }}>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      Recipes
+    </Link>
+  );
+
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
-        <Navbar />
-        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '60px 20px', textAlign: 'center', color: '#999', fontSize: '14px' }}>
-          Loading...
+      <ProtectedRoute>
+        <div style={{ minHeight: '100vh' }}>
+          <Navbar />
+          <div className="container" style={{ padding: '40px 20px' }}>
+            <div className="skeleton" style={{ height: '36px', width: '60%', marginBottom: '14px' }} />
+            <div className="skeleton" style={{ height: '16px', width: '85%', marginBottom: '8px' }} />
+            <div className="skeleton" style={{ height: '16px', width: '70%', marginBottom: '40px' }} />
+            <div className="skeleton" style={{ height: '200px', width: '100%' }} />
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
   }
 
   if (error || !recipe) {
     return (
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
-        <Navbar />
-        <div style={{ maxWidth: '600px', margin: '0 auto', padding: '60px 20px', textAlign: 'center' }}>
-          <p style={{ color: '#999', fontSize: '14px', marginBottom: '16px' }}>{error || 'Recipe not found'}</p>
-          <Link href="/" style={{ color: '#1a1a1a', fontSize: '13px' }}>Back to recipes</Link>
+      <ProtectedRoute>
+        <div style={{ minHeight: '100vh' }}>
+          <Navbar />
+          <div className="container" style={{ padding: '80px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>🤷</div>
+            <p className="secondary" style={{ fontSize: '15px', marginBottom: '20px' }}>{error || 'Recipe not found'}</p>
+            <Link href="/" className="btn btn-ghost">Back to recipes</Link>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
   }
 
   const displayRecipe = isEditing ? editedRecipe! : recipe;
   const isHebrew = displayRecipe.language === 'he';
-
-  const inputStyle = {
-    width: '100%',
-    padding: '8px 10px',
-    border: '1px solid #e5e5e5',
-    borderRadius: '6px',
-    fontSize: '14px',
-    outline: 'none',
-    color: '#1a1a1a',
-  };
+  const dir = isHebrew ? 'rtl' : 'ltr';
 
   return (
     <ProtectedRoute>
-      <div style={{ minHeight: '100vh', background: '#fff' }}>
+      <div style={{ minHeight: '100vh' }}>
         <Navbar />
 
-        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 20px' }}>
+        <div className="container fade-up" style={{ padding: '32px 20px 80px' }}>
+          {backLink}
+
           {/* Title */}
           <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexDirection: isHebrew ? 'row-reverse' : 'row' }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '14px',
+              flexDirection: isHebrew ? 'row-reverse' : 'row',
+            }}>
               {isEditing ? (
                 <>
                   <input
@@ -287,19 +304,30 @@ export default function RecipePage() {
                     value={displayRecipe.emoji || ''}
                     onChange={(e) => updateEditedField('emoji', e.target.value)}
                     placeholder="🍽️"
-                    style={{ ...inputStyle, width: '60px', textAlign: 'center', fontSize: '32px', padding: '8px' }}
+                    className="input"
+                    style={{ width: '64px', textAlign: 'center', fontSize: '30px', padding: '8px', flexShrink: 0 }}
                   />
                   <input
                     type="text"
                     value={displayRecipe.title}
                     onChange={(e) => updateEditedField('title', e.target.value)}
-                    style={{ ...inputStyle, flex: 1, fontSize: '28px', fontWeight: '600', direction: isHebrew ? 'rtl' : 'ltr' }}
+                    className="input"
+                    style={{ flex: 1, fontSize: '24px', fontWeight: 650, direction: dir }}
                   />
                 </>
               ) : (
                 <>
-                  {displayRecipe.emoji && <span style={{ fontSize: '32px' }}>{displayRecipe.emoji}</span>}
-                  <h1 style={{ fontSize: '32px', fontWeight: '600', color: '#1a1a1a', margin: 0, direction: isHebrew ? 'rtl' : 'ltr' }}>
+                  {displayRecipe.emoji && (
+                    <span style={{
+                      flexShrink: 0, width: '52px', height: '52px', display: 'grid', placeItems: 'center',
+                      fontSize: '30px', background: 'var(--surface)', border: '1px solid var(--border)',
+                      borderRadius: '14px', boxShadow: 'var(--shadow-sm)',
+                    }}>{displayRecipe.emoji}</span>
+                  )}
+                  <h1 style={{
+                    fontSize: '30px', fontWeight: 650, letterSpacing: '-0.02em', color: 'var(--ink)',
+                    margin: 0, direction: dir, lineHeight: 1.2, paddingTop: '4px', flex: 1,
+                  }}>
                     {displayRecipe.title}
                   </h1>
                 </>
@@ -310,21 +338,23 @@ export default function RecipePage() {
               <textarea
                 value={displayRecipe.description}
                 onChange={(e) => updateEditedField('description', e.target.value)}
-                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', direction: isHebrew ? 'rtl' : 'ltr' }}
+                className="textarea"
+                style={{ minHeight: '80px', direction: dir }}
               />
-            ) : (
-              <p style={{ fontSize: '16px', color: '#6b6b6b', margin: 0, lineHeight: '1.6', direction: isHebrew ? 'rtl' : 'ltr' }}>
+            ) : displayRecipe.description ? (
+              <p style={{ fontSize: '16px', color: 'var(--ink-secondary)', margin: 0, lineHeight: 1.65, direction: dir }}>
                 {displayRecipe.description}
               </p>
-            )}
+            ) : null}
 
             {isEditing && (
-              <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', color: '#6b6b6b' }}>Language:</span>
+              <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="secondary" style={{ fontSize: '13px' }}>Language</span>
                 <select
                   value={displayRecipe.language || 'en'}
                   onChange={(e) => updateEditedField('language', e.target.value)}
-                  style={{ ...inputStyle, width: 'auto', padding: '6px 10px' }}
+                  className="input"
+                  style={{ width: 'auto', padding: '7px 10px', fontSize: '14px' }}
                 >
                   <option value="en">English</option>
                   <option value="he">Hebrew</option>
@@ -333,18 +363,22 @@ export default function RecipePage() {
             )}
 
             {recipe.link && (
-              <div style={{ marginTop: '12px' }}>
+              <div style={{ marginTop: '14px' }}>
                 {isEditing ? (
                   <input
                     type="url"
                     value={displayRecipe.link || ''}
                     onChange={(e) => updateEditedField('link', e.target.value)}
                     placeholder="https://..."
-                    style={inputStyle}
+                    className="input"
                   />
                 ) : (
-                  <a href={recipe.link} target="_blank" rel="noopener noreferrer" style={{ color: '#6b6b6b', fontSize: '13px' }}>
-                    Source link
+                  <a href={recipe.link} target="_blank" rel="noopener noreferrer" className="badge" style={{ textDecoration: 'none' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    Source
                   </a>
                 )}
               </div>
@@ -358,13 +392,8 @@ export default function RecipePage() {
           {isEditing && (
             <div style={{ marginBottom: '32px' }}>
               <div
-                style={{
-                  border: '1px dashed #e5e5e5',
-                  borderRadius: '6px',
-                  padding: '20px',
-                  textAlign: 'center',
-                  cursor: 'pointer',
-                }}
+                className="dropzone"
+                style={{ padding: '20px' }}
                 onClick={() => document.getElementById('edit-image-upload')?.click()}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -384,28 +413,20 @@ export default function RecipePage() {
                   onChange={handleImageSelect}
                   style={{ display: 'none' }}
                 />
-                <div style={{ color: '#999', fontSize: '13px' }}>Drop images or click to upload</div>
+                Drop images or click to upload
               </div>
 
               {newImagePreviews.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '12px' }}>
                   {newImagePreviews.map((preview, index) => (
-                    <div key={index} style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden', border: '1px solid #e5e5e5', aspectRatio: '1' }}>
+                    <div key={index} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '1' }}>
                       <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       <button
                         onClick={() => removeNewImage(index)}
                         style={{
-                          position: 'absolute',
-                          top: '4px',
-                          right: '4px',
-                          width: '20px',
-                          height: '20px',
-                          borderRadius: '50%',
-                          background: '#1a1a1a',
-                          color: '#fff',
-                          border: 'none',
-                          cursor: 'pointer',
-                          fontSize: '12px',
+                          position: 'absolute', top: '4px', right: '4px', width: '22px', height: '22px',
+                          borderRadius: '999px', background: 'rgba(27,26,24,0.7)', color: '#fff',
+                          border: 'none', cursor: 'pointer', fontSize: '12px',
                         }}
                       >
                         ×
@@ -418,26 +439,24 @@ export default function RecipePage() {
           )}
 
           {/* Ingredients */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>Ingredients</h2>
+          <div style={{ marginBottom: '36px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 className="section-title">Ingredients</h2>
               {isEditing && (
-                <button onClick={addIngredient} style={{ padding: '6px 12px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                  + Add
-                </button>
+                <button onClick={addIngredient} className="btn btn-ghost btn-sm">+ Add</button>
               )}
             </div>
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: '8px', overflow: 'hidden' }}>
+            <div className="card" style={{ overflow: 'hidden' }}>
               {displayRecipe.ingredients.map((ingredient, index) => (
                 <div
                   key={index}
+                  onClick={!isEditing ? () => toggleIngredient(index) : undefined}
                   style={{
                     padding: '12px 16px',
-                    borderBottom: index < displayRecipe.ingredients.length - 1 ? '1px solid #e5e5e5' : 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    direction: isHebrew ? 'rtl' : 'ltr',
+                    borderBottom: index < displayRecipe.ingredients.length - 1 ? '1px solid var(--border)' : 'none',
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    direction: dir, cursor: isEditing ? 'default' : 'pointer',
+                    transition: 'background .12s ease',
                   }}
                 >
                   {isEditing ? (
@@ -446,21 +465,33 @@ export default function RecipePage() {
                         type="text"
                         value={ingredient}
                         onChange={(e) => updateIngredient(index, e.target.value)}
-                        style={{ ...inputStyle, flex: 1 }}
+                        className="input"
+                        style={{ flex: 1 }}
                       />
-                      <button onClick={() => removeIngredient(index)} style={{ padding: '4px 10px', background: '#e5e5e5', color: '#1a1a1a', border: 'none', borderRadius: '4px', fontSize: '14px', cursor: 'pointer' }}>
+                      <button onClick={() => removeIngredient(index)} aria-label="Remove"
+                        style={{ flexShrink: 0, width: '30px', height: '30px', background: 'var(--surface-muted)', color: 'var(--ink-secondary)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '15px', cursor: 'pointer' }}>
                         ×
                       </button>
                     </>
                   ) : (
                     <>
-                      <input
-                        type="checkbox"
-                        checked={checkedIngredients.has(index)}
-                        onChange={() => toggleIngredient(index)}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                      />
-                      <span style={{ fontSize: '15px', color: '#1a1a1a', opacity: checkedIngredients.has(index) ? 0.5 : 1, textDecoration: checkedIngredients.has(index) ? 'line-through' : 'none' }}>
+                      <span style={{
+                        flexShrink: 0, width: '20px', height: '20px', borderRadius: '6px',
+                        border: checkedIngredients.has(index) ? '1px solid var(--accent)' : '1.5px solid var(--border-strong)',
+                        background: checkedIngredients.has(index) ? 'var(--accent)' : 'transparent',
+                        display: 'grid', placeItems: 'center', transition: 'all .12s ease',
+                      }}>
+                        {checkedIngredients.has(index) && (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                      <span style={{
+                        fontSize: '15px', color: 'var(--ink)',
+                        opacity: checkedIngredients.has(index) ? 0.45 : 1,
+                        textDecoration: checkedIngredients.has(index) ? 'line-through' : 'none',
+                      }}>
                         {ingredient}
                       </span>
                     </>
@@ -471,49 +502,56 @@ export default function RecipePage() {
           </div>
 
           {/* Instructions */}
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#1a1a1a', margin: 0 }}>Instructions</h2>
+          <div style={{ marginBottom: '36px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 className="section-title">Instructions</h2>
               {isEditing && (
-                <button onClick={addInstruction} style={{ padding: '6px 12px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '13px', cursor: 'pointer' }}>
-                  + Add
-                </button>
+                <button onClick={addInstruction} className="btn btn-ghost btn-sm">+ Add</button>
               )}
             </div>
-            <div style={{ border: '1px solid #e5e5e5', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {displayRecipe.instructions.map((instruction, index) => (
                 <div
                   key={index}
+                  onClick={!isEditing ? () => toggleInstruction(index) : undefined}
+                  className="card"
                   style={{
                     padding: '14px 16px',
-                    borderBottom: index < displayRecipe.instructions.length - 1 ? '1px solid #e5e5e5' : 'none',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '12px',
-                    direction: isHebrew ? 'rtl' : 'ltr',
+                    display: 'flex', alignItems: 'flex-start', gap: '14px',
+                    direction: dir, cursor: isEditing ? 'default' : 'pointer',
                   }}
                 >
                   {isEditing ? (
                     <>
-                      <span style={{ fontSize: '14px', color: '#999', minWidth: '24px' }}>{index + 1}.</span>
+                      <span style={{ fontSize: '14px', color: 'var(--ink-muted)', minWidth: '22px', paddingTop: '10px' }}>{index + 1}.</span>
                       <textarea
                         value={instruction}
                         onChange={(e) => updateInstruction(index, e.target.value)}
-                        style={{ ...inputStyle, flex: 1, minHeight: '80px', resize: 'vertical' }}
+                        className="textarea"
+                        style={{ flex: 1, minHeight: '76px' }}
                       />
-                      <button onClick={() => removeInstruction(index)} style={{ padding: '4px 10px', background: '#e5e5e5', color: '#1a1a1a', border: 'none', borderRadius: '4px', fontSize: '14px', cursor: 'pointer' }}>
+                      <button onClick={() => removeInstruction(index)} aria-label="Remove"
+                        style={{ flexShrink: 0, width: '30px', height: '30px', background: 'var(--surface-muted)', color: 'var(--ink-secondary)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '15px', cursor: 'pointer' }}>
                         ×
                       </button>
                     </>
                   ) : (
                     <>
-                      <input
-                        type="checkbox"
-                        checked={checkedInstructions.has(index)}
-                        onChange={() => toggleInstruction(index)}
-                        style={{ width: '18px', height: '18px', cursor: 'pointer', marginTop: '3px' }}
-                      />
-                      <span style={{ fontSize: '15px', color: '#1a1a1a', lineHeight: '1.6', opacity: checkedInstructions.has(index) ? 0.5 : 1, textDecoration: checkedInstructions.has(index) ? 'line-through' : 'none' }}>
+                      <span style={{
+                        flexShrink: 0, width: '26px', height: '26px', borderRadius: '999px',
+                        display: 'grid', placeItems: 'center', fontSize: '13px', fontWeight: 600,
+                        background: checkedInstructions.has(index) ? 'var(--accent)' : 'var(--surface-muted)',
+                        color: checkedInstructions.has(index) ? '#fff' : 'var(--ink-secondary)',
+                        border: checkedInstructions.has(index) ? '1px solid var(--accent)' : '1px solid var(--border)',
+                        transition: 'all .12s ease',
+                      }}>
+                        {index + 1}
+                      </span>
+                      <span style={{
+                        fontSize: '15px', color: 'var(--ink)', lineHeight: 1.6, paddingTop: '2px',
+                        opacity: checkedInstructions.has(index) ? 0.45 : 1,
+                        textDecoration: checkedInstructions.has(index) ? 'line-through' : 'none',
+                      }}>
                         {instruction}
                       </span>
                     </>
@@ -524,112 +562,40 @@ export default function RecipePage() {
           </div>
 
           {/* Actions */}
-          <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '24px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
             {!isEditing ? (
               <>
-                <button
-                  onClick={handleEdit}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#1a1a1a',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Edit Recipe
-                </button>
+                <button onClick={handleEdit} className="btn btn-primary">Edit recipe</button>
                 {!shareLink ? (
-                  <button
-                    onClick={handleShare}
-                    disabled={isSharing}
-                    style={{
-                      padding: '10px 20px',
-                      background: '#fff',
-                      color: '#1a1a1a',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      cursor: 'pointer',
-                      opacity: isSharing ? 0.5 : 1,
-                    }}
-                  >
-                    {isSharing ? 'Creating...' : 'Create Share Link'}
+                  <button onClick={handleShare} disabled={isSharing} className="btn btn-ghost">
+                    {isSharing ? <><span className="spinner" /> Creating…</> : 'Share'}
                   </button>
                 ) : (
-                  <div
-                    onClick={() => {
-                      navigator.clipboard.writeText(shareLink).catch(() => {});
-                    }}
-                    style={{
-                      padding: '10px 12px',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      color: '#1a1a1a',
-                      background: '#fafafa',
-                      cursor: 'pointer',
-                      userSelect: 'all',
-                      WebkitUserSelect: 'all',
-                      wordBreak: 'break-all',
-                    }}
-                  >
-                    {shareLink}
-                  </div>
+                  <button onClick={copyShareLink} className="btn btn-ghost" style={{ maxWidth: '100%' }}>
+                    {copied ? (
+                      <>✓ Copied</>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        Copy share link
+                      </>
+                    )}
+                  </button>
                 )}
               </>
             ) : (
               <>
-                <button
-                  onClick={handleCancel}
-                  disabled={isSaving}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#fff',
-                    color: '#6b6b6b',
-                    border: '1px solid #e5e5e5',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    opacity: isSaving ? 0.5 : 1,
-                  }}
-                >
+                <button onClick={handleSave} disabled={isSaving} className="btn btn-accent">
+                  {isSaving ? <><span className="spinner" /> Saving…</> : 'Save changes'}
+                </button>
+                <button onClick={handleCancel} disabled={isSaving} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#1a1a1a',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    opacity: isSaving ? 0.5 : 1,
-                  }}
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={isSaving || isDeleting}
-                  style={{
-                    padding: '10px 20px',
-                    background: '#fff',
-                    color: '#999',
-                    border: '1px solid #e5e5e5',
-                    borderRadius: '6px',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    marginLeft: 'auto',
-                    opacity: (isSaving || isDeleting) ? 0.5 : 1,
-                  }}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
+                <button onClick={handleDelete} disabled={isSaving || isDeleting} className="btn btn-danger" style={{ marginLeft: 'auto' }}>
+                  {isDeleting ? 'Deleting…' : 'Delete'}
                 </button>
               </>
             )}

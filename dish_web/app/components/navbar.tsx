@@ -3,18 +3,28 @@
 import Link from 'next/link';
 import { useAuth } from '../context/auth-context';
 
+function initials(user: { full_name?: string; username?: string; email?: string } | null) {
+  if (!user) return '?';
+  const source = user.full_name || user.username || user.email || '';
+  const parts = source.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]);
+  return source.slice(0, 2) || '?';
+}
+
 export default function Navbar() {
   const { user, logout } = useAuth();
 
   return (
     <nav style={{
-      background: '#fff',
-      borderBottom: '1px solid #e5e5e5',
-      padding: '14px 20px',
+      background: 'rgba(246, 245, 242, 0.82)',
+      backdropFilter: 'saturate(180%) blur(12px)',
+      borderBottom: '1px solid var(--border)',
+      padding: '12px 0',
+      position: 'sticky',
+      top: 0,
+      zIndex: 50,
     }}>
-      <div style={{
-        maxWidth: '800px',
-        margin: '0 auto',
+      <div className="container" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -23,31 +33,37 @@ export default function Navbar() {
           href="/"
           style={{
             fontSize: '16px',
-            fontWeight: '600',
-            color: '#1a1a1a',
+            fontWeight: 650,
+            letterSpacing: '-0.01em',
+            color: 'var(--ink)',
             textDecoration: 'none',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '9px',
           }}
         >
-          <span style={{ fontSize: '20px' }}>🍜</span>
-          Dishes
+          <span style={{
+            width: '30px', height: '30px', display: 'grid', placeItems: 'center',
+            fontSize: '17px', background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: '9px', boxShadow: 'var(--shadow-sm)',
+          }}>🍜</span>
+          Dish
         </Link>
-        <button
-          onClick={() => logout()}
-          style={{
-            padding: '8px 14px',
-            background: 'transparent',
-            color: '#6b6b6b',
-            border: '1px solid #e5e5e5',
-            borderRadius: '6px',
-            fontSize: '14px',
-            cursor: 'pointer',
-          }}
-        >
-          Logout
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {user && (
+            <div
+              title={user.full_name || user.username}
+              className="avatar"
+              aria-hidden
+            >
+              {initials(user)}
+            </div>
+          )}
+          <button onClick={() => logout()} className="btn btn-ghost btn-sm">
+            Sign out
+          </button>
+        </div>
       </div>
     </nav>
   );

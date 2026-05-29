@@ -11,6 +11,13 @@ declare global {
   }
 }
 
+// Module-level guard: the One Tap FedCM prompt must fire at most once per page
+// load. React StrictMode (dev) double-invokes effects, and a second concurrent
+// prompt throws "Only one navigator.credentials.get request may be outstanding
+// at one time" — a source of intermittent sign-in failures that required a
+// second attempt. initialize()/renderButton() are idempotent and re-run safely.
+let oneTapPrompted = false;
+
 function SearchParamsHandler({ setError }: { setError: (error: string) => void }) {
   const searchParams = useSearchParams();
 
@@ -33,38 +40,75 @@ function LoginPageContent() {
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [googleReady, setGoogleReady] = useState(false);
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  // Guard so the in-flight auth request fires only once even if One Tap and
+  // the button both resolve.
+  const authInFlight = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
+
     const initializeGoogleSignIn = () => {
-      if (window.google && googleButtonRef.current) {
-        window.google.accounts.id.initialize({
-          client_id: API_CONFIG.GOOGLE_CLIENT_ID,
-          callback: handleGoogleCallback,
-        });
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          theme: 'outline',
-          size: 'large',
-          width: '100%',
-          text: 'continue_with',
-        });
+      if (cancelled || !window.google || !googleButtonRef.current) return;
+
+      // initialize() must run before renderButton(). Both are idempotent, so we
+      // re-run them on every mount — this keeps Google bound to the current
+      // callback closure (avoids a stale callback after a client-side remount).
+      window.google.accounts.id.initialize({
+        client_id: API_CONFIG.GOOGLE_CLIENT_ID,
+        callback: handleGoogleCallback,
+        auto_select: true,            // silently sign returning users back in
+        cancel_on_tap_outside: false,
+        use_fedcm_for_prompt: true,   // modern Chrome flow, fewer popups
+        itp_support: true,
+        ux_mode: 'popup',
+      });
+
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 320,
+        text: 'continue_with',
+        shape: 'rectangular',
+        logo_alignment: 'center',
+      });
+      setGoogleReady(true);
+
+      // One Tap (at most once per page load): returning users with an active
+      // Google session are signed in automatically, avoiding the
+      // "open Google → bounce back" round trip. Guarded because a second
+      // concurrent FedCM prompt throws NotAllowedError.
+      if (!oneTapPrompted) {
+        oneTapPrompted = true;
+        window.google.accounts.id.prompt();
       }
     };
 
     if (window.google) {
       initializeGoogleSignIn();
     } else {
-      const checkGoogleLoaded = setInterval(() => {
+      const interval = setInterval(() => {
         if (window.google) {
-          clearInterval(checkGoogleLoaded);
+          clearInterval(interval);
           initializeGoogleSignIn();
         }
       }, 100);
-      setTimeout(() => clearInterval(checkGoogleLoaded), 10000);
+      const timeout = setTimeout(() => clearInterval(interval), 10000);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+        clearTimeout(timeout);
+      };
     }
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleGoogleCallback = async (response: any) => {
+    if (authInFlight.current) return;
+    authInFlight.current = true;
     setError('');
     setIsLoading(true);
 
@@ -85,14 +129,18 @@ function LoginPageContent() {
             full_name: data.user.full_name,
           });
         }
+        // Full navigation so the authenticated cookie is in place for the
+        // first request on the home page.
         window.location.href = '/';
-      } else {
-        const errorData = await result.json();
-        setError(errorData.detail || 'Google authentication failed');
+        return;
       }
-    } catch (err) {
+
+      const errorData = await result.json().catch(() => ({}));
+      setError(errorData.detail || 'Google sign-in failed. Please try again.');
+    } catch {
       setError('Network error. Please try again.');
     } finally {
+      authInFlight.current = false;
       setIsLoading(false);
     }
   };
@@ -131,7 +179,7 @@ function LoginPageContent() {
           setError('Login failed. Please check your credentials.');
         }
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
@@ -154,7 +202,7 @@ function LoginPageContent() {
       if (!result.success) {
         setError(result.error || 'Signup failed');
       }
-    } catch (err) {
+    } catch {
       setError('Network error. Please try again.');
     } finally {
       setIsLoading(false);
@@ -169,240 +217,135 @@ function LoginPageContent() {
     setError('');
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '12px 14px',
-    border: '1px solid #e5e5e5',
-    borderRadius: '6px',
-    fontSize: '15px',
-    outline: 'none',
-    color: '#1a1a1a',
-    marginTop: '8px',
-  };
-
-  const labelStyle = {
-    display: 'block',
-    fontSize: '14px',
-    fontWeight: '500' as const,
-    color: '#6b6b6b',
-    marginBottom: '4px',
-  };
-
   return (
     <div style={{
       minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#fafafa',
-      padding: '20px',
+      padding: '24px',
     }}>
       <Suspense fallback={null}>
         <SearchParamsHandler setError={setError} />
       </Suspense>
 
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        background: '#fff',
-        border: '1px solid #e5e5e5',
-        borderRadius: '8px',
-        padding: '40px',
-      }}>
-        <h1 style={{
-          fontSize: '24px',
-          fontWeight: '600',
-          color: '#1a1a1a',
-          textAlign: 'center',
-          marginBottom: '32px',
-        }}>
-          Dishes
-        </h1>
-
-        {/* Tabs */}
-        <div style={{
-          display: 'flex',
-          borderBottom: '1px solid #e5e5e5',
-          marginBottom: '28px',
-        }}>
-          {(['login', 'signup'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                resetForm();
-              }}
-              style={{
-                flex: 1,
-                padding: '12px',
-                border: 'none',
-                background: 'transparent',
-                color: activeTab === tab ? '#1a1a1a' : '#999',
-                cursor: 'pointer',
-                fontSize: '15px',
-                fontWeight: activeTab === tab ? '500' : '400',
-                textTransform: 'capitalize',
-                borderBottom: activeTab === tab ? '2px solid #1a1a1a' : '2px solid transparent',
-                marginBottom: '-1px',
-              }}
-            >
-              {tab === 'login' ? 'Login' : 'Sign Up'}
-            </button>
-          ))}
+      <div style={{ width: '100%', maxWidth: '380px' }} className="fade-up">
+        {/* Brand */}
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{
+            width: '52px',
+            height: '52px',
+            margin: '0 auto 16px',
+            display: 'grid',
+            placeItems: 'center',
+            fontSize: '28px',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: '16px',
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            🍜
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 650, letterSpacing: '-0.02em', margin: 0 }}>
+            Dish
+          </h1>
+          <p style={{ margin: '6px 0 0', color: 'var(--ink-muted)', fontSize: '14px' }}>
+            Your recipes, beautifully kept.
+          </p>
         </div>
 
-        {error && (
-          <div style={{
-            padding: '12px 14px',
-            background: '#fafafa',
-            border: '1px solid #e5e5e5',
-            borderRadius: '6px',
-            color: '#1a1a1a',
-            fontSize: '14px',
-            marginBottom: '20px',
-          }}>
-            {error}
+        <div className="card" style={{ padding: '28px' }}>
+          {/* Google first — the primary path */}
+          <div style={{ minHeight: '44px', display: 'flex', justifyContent: 'center' }}>
+            {isLoading ? (
+              <div className="btn btn-ghost btn-block" style={{ cursor: 'default' }}>
+                <span className="spinner" /> Signing you in…
+              </div>
+            ) : (
+              <div ref={googleButtonRef} />
+            )}
           </div>
-        )}
+          {!googleReady && !isLoading && (
+            <div style={{ textAlign: 'center', color: 'var(--ink-muted)', fontSize: '13px', marginTop: '8px' }}>
+              Loading Google sign-in…
+            </div>
+          )}
 
-        {/* Login Form */}
-        {activeTab === 'login' && (
-          <form onSubmit={handleUsernamePasswordLogin}>
-            <div style={{ marginBottom: '18px' }}>
-              <label style={labelStyle}>Username</label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <div style={{ marginBottom: '24px' }}>
-              <label style={labelStyle}>Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#1a1a1a',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '15px',
-                cursor: 'pointer',
-                opacity: isLoading ? 0.5 : 1,
-              }}
-            >
-              {isLoading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-        )}
+          <div className="divider" style={{ margin: '22px 0' }}>or use a password</div>
 
-        {/* Signup Form */}
-        {activeTab === 'signup' && (
-          <form onSubmit={handleSignup}>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Username</label>
-              <input
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Password</label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={labelStyle}>Email (optional)</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <div style={{ marginBottom: '24px' }}>
-              <label style={labelStyle}>Full Name (optional)</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                style={inputStyle}
-                disabled={isLoading}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: '#1a1a1a',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '15px',
-                cursor: 'pointer',
-                opacity: isLoading ? 0.5 : 1,
-              }}
-            >
-              {isLoading ? 'Creating account...' : 'Create account'}
-            </button>
-          </form>
-        )}
+          {/* Tabs */}
+          <div className="tabs" style={{ marginBottom: '22px' }}>
+            {(['login', 'signup'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); resetForm(); }}
+                className={`tab ${activeTab === tab ? 'tab-active' : ''}`}
+              >
+                {tab === 'login' ? 'Sign in' : 'Sign up'}
+              </button>
+            ))}
+          </div>
 
-        {/* Divider */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          margin: '28px 0',
-        }}>
-          <div style={{ flex: 1, height: '1px', background: '#e5e5e5' }} />
-          <span style={{ padding: '0 16px', color: '#999', fontSize: '13px' }}>or</span>
-          <div style={{ flex: 1, height: '1px', background: '#e5e5e5' }} />
+          {error && (
+            <div style={{
+              padding: '11px 13px',
+              background: 'var(--danger-soft)',
+              border: '1px solid #f1cfc8',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--danger)',
+              fontSize: '13.5px',
+              marginBottom: '18px',
+            }}>
+              {error}
+            </div>
+          )}
+
+          {activeTab === 'login' && (
+            <form onSubmit={handleUsernamePasswordLogin}>
+              <div className="field">
+                <label className="label">Username</label>
+                <input type="text" required value={username}
+                  onChange={(e) => setUsername(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <div className="field" style={{ marginBottom: '22px' }}>
+                <label className="label">Password</label>
+                <input type="password" required value={password}
+                  onChange={(e) => setPassword(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <button type="submit" disabled={isLoading} className="btn btn-primary btn-block">
+                {isLoading ? 'Signing in…' : 'Sign in'}
+              </button>
+            </form>
+          )}
+
+          {activeTab === 'signup' && (
+            <form onSubmit={handleSignup}>
+              <div className="field">
+                <label className="label">Username</label>
+                <input type="text" required value={username}
+                  onChange={(e) => setUsername(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <div className="field">
+                <label className="label">Password</label>
+                <input type="password" required value={password}
+                  onChange={(e) => setPassword(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <div className="field">
+                <label className="label">Email <span className="muted">(optional)</span></label>
+                <input type="email" value={email}
+                  onChange={(e) => setEmail(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <div className="field" style={{ marginBottom: '22px' }}>
+                <label className="label">Full name <span className="muted">(optional)</span></label>
+                <input type="text" value={fullName}
+                  onChange={(e) => setFullName(e.target.value)} className="input" disabled={isLoading} />
+              </div>
+              <button type="submit" disabled={isLoading} className="btn btn-primary btn-block">
+                {isLoading ? 'Creating account…' : 'Create account'}
+              </button>
+            </form>
+          )}
         </div>
-
-        {/* Google Sign-In */}
-        <div
-          ref={googleButtonRef}
-          style={{ display: isLoading ? 'none' : 'block' }}
-        />
-        {isLoading && (
-          <div style={{
-            padding: '12px',
-            border: '1px solid #e5e5e5',
-            borderRadius: '6px',
-            textAlign: 'center',
-            color: '#999',
-            fontSize: '14px',
-          }}>
-            Authenticating...
-          </div>
-        )}
       </div>
     </div>
   );

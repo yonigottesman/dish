@@ -23,8 +23,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Show loading state while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--ink-muted)', fontSize: '14px' }}>
+          <span className="spinner" /> Loading…
+        </div>
       </div>
     );
   }

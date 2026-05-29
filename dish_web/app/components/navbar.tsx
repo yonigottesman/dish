@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/auth-context';
 
 function initials(user: { full_name?: string; username?: string; email?: string } | null) {
@@ -13,6 +14,26 @@ function initials(user: { full_name?: string; username?: string; email?: string 
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   return (
     <nav style={{
@@ -50,20 +71,58 @@ export default function Navbar() {
           Dish
         </Link>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {user && (
-            <div
+        {user && (
+          <div ref={menuRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(o => !o)}
               title={user.full_name || user.username}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
               className="avatar"
-              aria-hidden
+              style={{ border: 'none', cursor: 'pointer', padding: 0 }}
             >
               {initials(user)}
-            </div>
-          )}
-          <button onClick={() => logout()} className="btn btn-ghost btn-sm">
-            Sign out
-          </button>
-        </div>
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  minWidth: '140px',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '10px',
+                  boxShadow: 'var(--shadow-md, 0 8px 24px rgba(0,0,0,0.08))',
+                  overflow: 'hidden',
+                  zIndex: 60,
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); logout(); }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '10px 14px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    color: 'var(--ink)',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--hover, rgba(0,0,0,0.04))'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );

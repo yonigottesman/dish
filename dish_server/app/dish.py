@@ -4,8 +4,10 @@ import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from google.cloud import storage
-from PIL import Image, ImageOps
-from pillow_heif import register_heif_opener
+
+# PIL and pillow_heif are heavy to import and only used by image upload, so they
+# are imported lazily in process_image_bytes() to keep them off the cold-start
+# critical path (this router is imported at app startup).
 
 from app.config import settings
 from app.crud import (
@@ -32,7 +34,8 @@ from app.models import DishImportType, PubSubMessage, RecipeModel, User
 router = APIRouter(
     tags=["dish"],
 )
-register_heif_opener()
+
+_heif_registered = False
 
 
 @router.get("/all_dishes")
@@ -115,6 +118,14 @@ async def add_dish_from_text(
 
 
 def process_image_bytes(image_bytes: bytes) -> bytes:
+    global _heif_registered
+    from PIL import Image, ImageOps
+    from pillow_heif import register_heif_opener
+
+    if not _heif_registered:
+        register_heif_opener()
+        _heif_registered = True
+
     pil_image = Image.open(io.BytesIO(image_bytes))
     pil_image = ImageOps.exif_transpose(pil_image)
     pil_image = pil_image.convert("RGB")

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -367,7 +367,6 @@ dependencies = [
     { name = "google-cloud-pubsub" },
     { name = "google-cloud-storage" },
     { name = "google-genai" },
-    { name = "ipykernel" },
     { name = "itsdangerous" },
     { name = "langdetect" },
     { name = "passlib", extra = ["bcrypt"] },
@@ -375,6 +374,11 @@ dependencies = [
     { name = "pillow-heif" },
     { name = "pydantic-settings" },
     { name = "pyjwt" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ipykernel" },
     { name = "ruff" },
 ]
 
@@ -389,7 +393,6 @@ requires-dist = [
     { name = "google-cloud-pubsub", specifier = ">=2.34.0" },
     { name = "google-cloud-storage", specifier = ">=3.1.0" },
     { name = "google-genai", specifier = ">=1.17.0" },
-    { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "langdetect", specifier = ">=1.0.9" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
@@ -397,6 +400,11 @@ requires-dist = [
     { name = "pillow-heif", specifier = ">=0.22.0" },
     { name = "pydantic-settings", specifier = ">=2.9.1" },
     { name = "pyjwt", specifier = ">=2.10.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "ipykernel", specifier = ">=6.29.5" },
     { name = "ruff", specifier = ">=0.11.11" },
 ]
 

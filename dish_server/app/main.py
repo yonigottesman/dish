@@ -4,27 +4,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from google import genai
-from google.api_core.client_options import ClientOptions
-from google.cloud import documentai_v1, firestore, pubsub, storage
+from google.cloud import firestore, pubsub, storage
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.dependencies import NotAuthenticatedException, get_logger
 from app.dish import router as dish_router
 from app.login import router as login_router
-from app.process_dish import ProcessDishCallback
+
+# NOTE: `from google import genai`, the Document AI client, and app.process_dish
+# (which transitively imports genai/documentai/bs4/langdetect/PIL) are
+# deliberately NOT imported at module level. They are heavy to import on a cold
+# disk and are only needed by the background recipe-processing worker, never by
+# the user-facing login/recipe-list path. They are imported lazily inside
+# warm_heavy_clients() so uvicorn can bind the port (and Cloud Run's startup
+# probe can pass) before paying that cost. See lifespan().
 
 # logging.basicConfig(level=logging.INFO)
-
-
-def build_documentai_client():
-    opts = ClientOptions(api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com")
-    client = documentai_v1.DocumentProcessorServiceAsyncClient(client_options=opts)
-    processor_name = client.processor_path(
-        settings.GOOGLE_CLOUD_PROJECT, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
-    )
-    return processor_name, client
 
 
 async def warm_firestore(db: firestore.AsyncClient, logger):
@@ -43,67 +39,96 @@ async def warm_firestore(db: firestore.AsyncClient, logger):
         logger.warning(f"Firestore warmup failed (continuing): {e}")
 
 
-def build_sync_clients():
-    """Construct the synchronous Google Cloud clients.
-
-    These constructors block (~0.3s each). Running them together in a worker
-    thread lets the Firestore warmup and the async Document AI client setup
-    proceed concurrently instead of serializing on the event loop.
-    """
+def build_light_clients():
+    """Construct the clients used by user-facing recipe routes (off the loop)."""
     return {
-        "genai_client": genai.Client(vertexai=True, project="personal-ai-264306", location="global"),
         "storage_client": storage.Client(project=settings.GOOGLE_CLOUD_PROJECT),
         "pubsub_publisher": pubsub.PublisherClient(),
         "pubsub_subscriber": pubsub.SubscriberClient(),
     }
 
 
+async def warmup(_app: FastAPI, logger):
+    """Build all Google Cloud clients after the server is already listening.
+
+    Nothing here is on the cold-start critical path: the lifespan returns
+    immediately so uvicorn binds the port and Cloud Run's startup probe passes,
+    then this runs in the background. Routes that need storage/pubsub await
+    `clients_ready` (set as soon as the light clients exist); login and recipe
+    listing only need Firestore, which is ready before the first request.
+
+    The heavy genai + Document AI imports (and app.process_dish, which pulls in
+    bs4/langdetect/PIL) happen here too, so they never delay startup. They are
+    only needed by the background Pub/Sub recipe worker. Best-effort: failures
+    are logged, not fatal.
+    """
+    try:
+        # Light clients first, then unblock any waiting user-facing requests.
+        light_clients = await asyncio.to_thread(build_light_clients)
+        _app.state.storage_client = light_clients["storage_client"]
+        _app.state.pubsub_publisher = light_clients["pubsub_publisher"]
+        _app.state.pubsub_subscriber = light_clients["pubsub_subscriber"]
+        _app.state.clients_ready.set()
+
+        from google import genai
+        from google.api_core.client_options import ClientOptions
+        from google.cloud import documentai_v1
+
+        from app.process_dish import ProcessDishCallback
+
+        # genai's constructor blocks; build it off the event loop.
+        _app.state.genai_client = await asyncio.to_thread(
+            genai.Client, vertexai=True, project="personal-ai-264306", location="global"
+        )
+
+        # Document AI uses an async gRPC client created on the running loop.
+        opts = ClientOptions(api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com")
+        documentai_client = documentai_v1.DocumentProcessorServiceAsyncClient(client_options=opts)
+        _app.state.documentai_client = documentai_client
+        _app.state.documentai_processor_name = documentai_client.processor_path(
+            settings.GOOGLE_CLOUD_PROJECT, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
+        )
+
+        _app.state.pubsub_subscription_path = _app.state.pubsub_subscriber.subscription_path(
+            settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_SUBSCRIPTION_ID
+        )
+        _app.state.subscribe_future = _app.state.pubsub_subscriber.subscribe(
+            _app.state.pubsub_subscription_path,
+            ProcessDishCallback(
+                logger=logger,
+                storage_client=_app.state.storage_client,
+                genai_client=_app.state.genai_client,
+                documentai_processor_name=_app.state.documentai_processor_name,
+                documentai_client=_app.state.documentai_client,
+                db=_app.state.db,
+                loop=asyncio.get_running_loop(),
+            ),
+        )
+        logger.info("Background warmup complete (genai, documentai, pubsub subscriber)")
+    except Exception as e:
+        logger.exception(f"Background warmup failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logger = get_logger()
     _app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
+    # Gate for routes needing storage/pubsub; set once the light clients exist.
+    _app.state.clients_ready = asyncio.Event()
 
-    # Kick off the Firestore warmup first so its one-time auth + channel cost
-    # overlaps with the client construction below and with the first request.
+    # Everything heavy runs in the background so the lifespan returns immediately
+    # and uvicorn binds the port (passing Cloud Run's startup probe) right away.
     warm_task = asyncio.create_task(warm_firestore(_app.state.db, logger))
+    warmup_task = asyncio.create_task(warmup(_app, logger))
 
-    # Build the synchronous clients off the event loop (concurrent with warmup).
-    sync_clients = await asyncio.to_thread(build_sync_clients)
-    _app.state.genai_client = sync_clients["genai_client"]
-    _app.state.storage_client = sync_clients["storage_client"]
-    _app.state.pubsub_publisher = sync_clients["pubsub_publisher"]
-    _app.state.pubsub_subscriber = sync_clients["pubsub_subscriber"]
-
-    # Document AI uses an async gRPC client, which must be created on the running
-    # event loop, so keep it here (construction is local-only, no network).
-    _app.state.documentai_processor_name, _app.state.documentai_client = build_documentai_client()
-
-    _app.state.pubsub_subscription_path = _app.state.pubsub_subscriber.subscription_path(
-        settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_SUBSCRIPTION_ID
-    )
-
-    # Get the current event loop to pass to the callback
-    loop = asyncio.get_running_loop()
-
-    future = _app.state.pubsub_subscriber.subscribe(
-        _app.state.pubsub_subscription_path,
-        ProcessDishCallback(
-            logger=logger,
-            storage_client=_app.state.storage_client,
-            genai_client=_app.state.genai_client,
-            documentai_processor_name=_app.state.documentai_processor_name,
-            documentai_client=_app.state.documentai_client,
-            db=_app.state.db,
-            loop=loop,
-        ),
-    )
     yield
 
-    # Shutdown: Close the clients
+    # Shutdown: stop background tasks and the subscriber.
     warm_task.cancel()
+    warmup_task.cancel()
+    future = getattr(_app.state, "subscribe_future", None)
     if future:
         future.cancel()
-        future.result()  # Wait for it to stop
 
 
 app = FastAPI(lifespan=lifespan)

@@ -14,7 +14,6 @@ dependencies = [
     "google-cloud-pubsub>=2.34.0",
     "google-cloud-storage>=3.1.0",
     "google-genai>=1.17.0",
-    "ipykernel>=6.29.5",
     "itsdangerous>=2.2.0",
     "langdetect>=1.0.9",
     "passlib[bcrypt]>=1.7.4",
@@ -22,5 +21,15 @@ dependencies = [
     "pillow-heif>=0.22.0",
     "pydantic-settings>=2.9.1",
     "pyjwt>=2.10.1",
+]
+
+[dependency-groups]
+# Dev-only tooling, kept OUT of the production image (the Dockerfile uses
+# `uv sync --no-dev`). ipykernel in particular drags in a heavy transitive
+# tree (debugpy, jedi, pyzmq, IPython, tornado, prompt_toolkit, ...) — ~35MB
+# and a few thousand extra files that were being read cold on every Cloud Run
+# cold start, inflating import time for no runtime benefit.
+dev = [
+    "ipykernel>=6.29.5",
     "ruff>=0.11.11",
 ]

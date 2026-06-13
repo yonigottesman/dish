@@ -1,15 +1,22 @@
 import logging
-from typing import Annotated, Generator, Optional
+from typing import TYPE_CHECKING, Annotated, Generator, Optional
 
 import jwt
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security.utils import get_authorization_scheme_param
-from google import genai
-from google.cloud import documentai_v1, pubsub, storage
+from google.cloud import pubsub, storage
 from google.cloud.firestore import AsyncClient
 from jwt.exceptions import InvalidTokenError
 from starlette.status import HTTP_401_UNAUTHORIZED
+
+# genai and documentai are heavy to import (they pull in large generated proto
+# trees) and are NOT used by any user-facing route — only by the background
+# recipe-processing worker. Keep them off the module import path (which is on
+# the cold-start critical path) and reference them only as string type hints.
+if TYPE_CHECKING:
+    from google import genai
+    from google.cloud import documentai_v1
 
 from app.config import settings
 from app.crud import get_user
@@ -40,11 +47,13 @@ def get_firestore_db(request: Request) -> Generator[AsyncClient, None, None]:
     yield request.app.state.db
 
 
-def get_genai_client(request: Request) -> Generator[genai.Client, None, None]:
+def get_genai_client(request: Request) -> Generator["genai.Client", None, None]:
     yield request.app.state.genai_client
 
 
-def get_documentai_client(request: Request) -> Generator[documentai_v1.DocumentProcessorServiceAsyncClient, None, None]:
+def get_documentai_client(
+    request: Request,
+) -> Generator["documentai_v1.DocumentProcessorServiceAsyncClient", None, None]:
     yield request.app.state.documentai_client
 
 
@@ -52,19 +61,24 @@ def get_documentai_processor_name(request: Request) -> Generator[str, None, None
     yield request.app.state.documentai_processor_name
 
 
-def get_storage_client(request: Request) -> Generator[storage.Client, None, None]:
+async def get_storage_client(request: Request):
+    # storage/pubsub are built by the background warmup (off the cold-start path),
+    # so wait until they're ready. This only affects recipe add/upload routes;
+    # login and recipe listing use Firestore, which is ready immediately.
+    await request.app.state.clients_ready.wait()
     yield request.app.state.storage_client
 
 
-def get_pubsub_publisher(request: Request) -> Generator[pubsub.PublisherClient, None, None]:
+async def get_pubsub_publisher(request: Request):
+    await request.app.state.clients_ready.wait()
     yield request.app.state.pubsub_publisher
 
 
 DocumentaiProcessorNameDep = Annotated[str, Depends(get_documentai_processor_name)]
-DocumentaiClientDep = Annotated[documentai_v1.DocumentProcessorServiceAsyncClient, Depends(get_documentai_client)]
+DocumentaiClientDep = Annotated["documentai_v1.DocumentProcessorServiceAsyncClient", Depends(get_documentai_client)]
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
-GenaiClientDep = Annotated[genai.Client, Depends(get_genai_client)]
+GenaiClientDep = Annotated["genai.Client", Depends(get_genai_client)]
 StorageClientDep = Annotated[storage.Client, Depends(get_storage_client)]
 PubSubPublisherDep = Annotated[pubsub.PublisherClient, Depends(get_pubsub_publisher)]
 

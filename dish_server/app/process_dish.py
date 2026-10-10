@@ -3,7 +3,6 @@ import io
 import logging
 import re
 import textwrap
-import uuid
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -64,7 +63,6 @@ class ProcessDishCallback:
     def __call__(self, message: pubsub_v1.subscriber.message.Message):
         self.logger.info("=" * 50)
         self.logger.info("CALLBACK RECEIVED MESSAGE")
-        self.logger.info("Raw message data: %s", message.data)
         try:
             data = PubSubMessage.model_validate_json(message.data.decode("utf-8"))
             self.logger.info(
@@ -83,12 +81,16 @@ class ProcessDishCallback:
             future = asyncio.run_coroutine_threadsafe(self._process_dish(data), self.loop)
             self.logger.info("Future created: %s", future)
             self.logger.info("Waiting for future result...")
-            result = future.result(timeout=300)  # 5 minute timeout
+            result = future.result(timeout=330)
             self.logger.info("Future completed with result: %s", result)
 
         except Exception as e:
             self.logger.error("Error processing message: %s", e, exc_info=True)
-        finally:
+            # Infrastructure failures must be redelivered, not silently lost.
+            if 'future' in locals():
+                future.cancel()
+            message.nack()
+        else:
             self.logger.info("Acknowledging message")
             message.ack()
             self.logger.info("Message acknowledged")
@@ -98,17 +100,19 @@ class ProcessDishCallback:
         """Route to appropriate processor based on import type"""
         self.logger.info("_process_dish started for dish_id: %s", data.dish_id)
         try:
-            if data.import_type == DishImportType.LINK:
-                self.logger.info("Routing to _process_from_link")
-                await self._process_from_link(data)
-            elif data.import_type == DishImportType.TEXT:
-                self.logger.info("Routing to _process_from_text")
-                await self._process_from_text(data)
-            elif data.import_type == DishImportType.IMAGE:
-                self.logger.info("Routing to _process_from_image")
-                await self._process_from_image(data)
-            else:
-                raise ValueError(f"Unknown import type: {data.import_type}")
+            # Pub/Sub may redeliver after a restart or lost acknowledgement.
+            snapshot = await self.db.collection("users").document(data.username).collection("recipes").document(data.dish_id).get()
+            if not snapshot.exists or snapshot.to_dict().get("status") != DishStatus.PROCESSING.value:
+                return
+            async with asyncio.timeout(240):
+                if data.import_type == DishImportType.LINK:
+                    await self._process_from_link(data)
+                elif data.import_type == DishImportType.TEXT:
+                    await self._process_from_text(data)
+                elif data.import_type == DishImportType.IMAGE:
+                    await self._process_from_image(data)
+                else:
+                    raise ValueError(f"Unknown import type: {data.import_type}")
 
             self.logger.info("_process_dish completed successfully for dish_id: %s", data.dish_id)
 
@@ -119,7 +123,7 @@ class ProcessDishCallback:
                 self.db,
                 data.username,
                 data.dish_id,
-                str(e),
+                str(e) or "Recipe processing timed out. Please try again.",
             )
             self.logger.info("Recipe marked as failed")
 
@@ -288,7 +292,7 @@ class ProcessDishCallback:
         # Download image from GCS
         self.logger.info("[IMAGE] Downloading from GCS...")
         blob = self.storage_client.bucket(settings.GCS_BUCKET_NAME).blob(data.image_data_gcs_path)
-        jpeg_bytes = blob.download_as_bytes()
+        jpeg_bytes = await asyncio.to_thread(blob.download_as_bytes, timeout=30)
         self.logger.info("[IMAGE] Downloaded %d bytes", len(jpeg_bytes))
 
         # Run Document AI OCR
@@ -371,15 +375,12 @@ class ProcessDishCallback:
         path_parts = data.image_data_gcs_path.split("/")
         user_id = path_parts[0]
 
-        final_image_id = f"{str(uuid.uuid4())}.jpeg"
+        final_image_id = f"{data.dish_id}.jpeg"
         final_path = f"{user_id}/{final_image_id}"
 
         final_blob = self.storage_client.bucket(settings.GCS_BUCKET_NAME).blob(final_path)
-        final_blob.upload_from_string(jpeg_bytes, content_type="image/jpeg")
+        await asyncio.to_thread(final_blob.upload_from_string, jpeg_bytes, content_type="image/jpeg", timeout=30)
         self.logger.info("[IMAGE] Uploaded to: %s", final_path)
-
-        blob.delete()
-        self.logger.info("[IMAGE] Deleted pending image")
 
         # Create final recipe
         recipe = RecipeModel(
@@ -398,3 +399,8 @@ class ProcessDishCallback:
         self.logger.info("[IMAGE] Updating recipe in Firestore...")
         await update_recipe_from_processing(self.db, data.username, recipe)
         self.logger.info("[IMAGE] COMPLETED processing dish %s - Title: %s", data.dish_id, parsed_recipe.title)
+        # Keep the source until both Firestore documents have committed.
+        try:
+            await asyncio.to_thread(blob.delete, timeout=30)
+        except Exception:
+            self.logger.warning("Could not clean up pending image for %s", data.dish_id, exc_info=True)

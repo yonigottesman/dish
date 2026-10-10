@@ -82,29 +82,60 @@ async def warmup(_app: FastAPI, logger):
         )
 
         # Document AI uses an async gRPC client created on the running loop.
-        opts = ClientOptions(api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com")
-        documentai_client = documentai_v1.DocumentProcessorServiceAsyncClient(client_options=opts)
+        opts = ClientOptions(
+            api_endpoint=f"{settings.DOCUMENT_AI_LOCATION}-documentai.googleapis.com"
+        )
+        documentai_client = documentai_v1.DocumentProcessorServiceAsyncClient(
+            client_options=opts
+        )
         _app.state.documentai_client = documentai_client
         _app.state.documentai_processor_name = documentai_client.processor_path(
-            settings.GOOGLE_CLOUD_PROJECT, settings.DOCUMENT_AI_LOCATION, settings.DOCUMENT_AI_PROCESSOR_ID
+            settings.GOOGLE_CLOUD_PROJECT,
+            settings.DOCUMENT_AI_LOCATION,
+            settings.DOCUMENT_AI_PROCESSOR_ID,
         )
 
-        _app.state.pubsub_subscription_path = _app.state.pubsub_subscriber.subscription_path(
-            settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_SUBSCRIPTION_ID
+        _app.state.pubsub_subscription_path = (
+            _app.state.pubsub_subscriber.subscription_path(
+                settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_SUBSCRIPTION_ID
+            )
         )
-        _app.state.subscribe_future = _app.state.pubsub_subscriber.subscribe(
-            _app.state.pubsub_subscription_path,
-            ProcessDishCallback(
-                logger=logger,
-                storage_client=_app.state.storage_client,
-                genai_client=_app.state.genai_client,
-                documentai_processor_name=_app.state.documentai_processor_name,
-                documentai_client=_app.state.documentai_client,
-                db=_app.state.db,
-                loop=asyncio.get_running_loop(),
-            ),
+        callback = ProcessDishCallback(
+            logger=logger,
+            storage_client=_app.state.storage_client,
+            genai_client=_app.state.genai_client,
+            documentai_processor_name=_app.state.documentai_processor_name,
+            documentai_client=_app.state.documentai_client,
+            db=_app.state.db,
+            loop=asyncio.get_running_loop(),
         )
-        logger.info("Background warmup complete (genai, documentai, pubsub subscriber)")
+        # StreamingPull fails asynchronously (e.g. a deleted subscription).
+        # Observe that failure and reconnect instead of reporting false readiness.
+        while True:
+            try:
+                await asyncio.to_thread(
+                    _app.state.pubsub_subscriber.get_subscription,
+                    request={"subscription": _app.state.pubsub_subscription_path},
+                    timeout=10,
+                )
+                future = _app.state.pubsub_subscriber.subscribe(
+                    _app.state.pubsub_subscription_path,
+                    callback,
+                    flow_control=pubsub.types.FlowControl(max_messages=4),
+                )
+                _app.state.subscribe_future = future
+                _app.state.worker_ready.set()
+                logger.info("Background recipe worker ready")
+                while not future.done():
+                    await asyncio.sleep(1)
+                future.result()
+                raise RuntimeError("Recipe subscriber stopped unexpectedly")
+            except Exception:
+                _app.state.worker_ready.clear()
+                logger.exception(
+                    "Recipe subscriber unavailable; retrying in 10 seconds"
+                )
+                await asyncio.sleep(10)
     except Exception as e:
         logger.exception(f"Background warmup failed: {e}")
 
@@ -112,9 +143,12 @@ async def warmup(_app: FastAPI, logger):
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     logger = get_logger()
-    _app.state.db = firestore.AsyncClient(project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu")
+    _app.state.db = firestore.AsyncClient(
+        project=settings.GOOGLE_CLOUD_PROJECT, database="dishdbeu"
+    )
     # Gate for routes needing storage/pubsub; set once the light clients exist.
     _app.state.clients_ready = asyncio.Event()
+    _app.state.worker_ready = asyncio.Event()
 
     # Everything heavy runs in the background so the lifespan returns immediately
     # and uvicorn binds the port (passing Cloud Run's startup probe) right away.
@@ -190,7 +224,8 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 def exc_handler(request, exc):
     # Return error response instead of redirect
     return JSONResponse(
-        status_code=status.HTTP_401_UNAUTHORIZED, content={"status": "error", "detail": "Authentication required"}
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"status": "error", "detail": "Authentication required"},
     )
 
 

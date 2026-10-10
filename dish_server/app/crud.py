@@ -190,18 +190,19 @@ async def mark_recipe_failed(db: AsyncClient, username: str, dish_id: str, error
     """Mark a recipe as failed with an error message"""
     user_ref = db.collection("users").document(username)
 
-    await user_ref.collection("recipes").document(dish_id).update({
+    batch = db.batch()
+    batch.update(user_ref.collection("recipes").document(dish_id), {
         "status": DishStatus.FAILED.value,
         "error_message": error_message[:500],
         "title": "Processing Failed",
         "description": error_message[:200],
     })
-
-    await user_ref.collection("recipes_metadata").document(dish_id).update({
+    batch.update(user_ref.collection("recipes_metadata").document(dish_id), {
         "status": DishStatus.FAILED.value,
         "title": "Processing Failed",
         "description": error_message[:200],
     })
+    await batch.commit()
 
 
 async def create_shared_recipe_ref(db: AsyncClient, user: User, dish_id: str) -> tuple[SharedRecipeRef, bool]:

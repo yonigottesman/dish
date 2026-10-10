@@ -24,6 +24,17 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Ensure recipe subscription never expires
+        run: |
+          if gcloud pubsub subscriptions describe dish-jobs-sub --project=personal-ai-264306; then
+            gcloud pubsub subscriptions update dish-jobs-sub --expiration-period=never --project=personal-ai-264306
+          else
+            gcloud pubsub subscriptions create dish-jobs-sub --topic=dish-jobs --expiration-period=never --ack-deadline=600 --project=personal-ai-264306
+          fi
+
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v3
@@ -31,7 +42,7 @@ jobs:
           service: dish-server
           source: dish_server/
           region: europe-west1
-          flags: '--min-instances=0 --allow-unauthenticated --memory=4Gi --cpu=4000m'
+          flags: '--min-instances=1 --no-cpu-throttling --allow-unauthenticated --memory=4Gi --cpu=4000m'
           env_vars: |
             GCLOUD_PROJECT_ID=personal-ai-264306
             IS_PRODUCTION=true

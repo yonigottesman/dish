@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Annotated, Generator, Optional
 
@@ -35,7 +36,9 @@ def get_logger() -> logging.Logger:
         handler.setLevel(logging.INFO)
 
         # Create formatter
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
         handler.setFormatter(formatter)
 
         # Add handler to logger
@@ -70,12 +73,27 @@ async def get_storage_client(request: Request):
 
 
 async def get_pubsub_publisher(request: Request):
-    await request.app.state.clients_ready.wait()
+    try:
+        await asyncio.wait_for(request.app.state.worker_ready.wait(), timeout=15)
+        await asyncio.to_thread(
+            request.app.state.pubsub_subscriber.get_subscription,
+            request={"subscription": request.app.state.pubsub_subscription_path},
+            timeout=10,
+        )
+        if request.app.state.subscribe_future.done():
+            raise RuntimeError("Recipe subscriber is not running")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe processing is temporarily unavailable. Please try again.",
+        ) from exc
     yield request.app.state.pubsub_publisher
 
 
 DocumentaiProcessorNameDep = Annotated[str, Depends(get_documentai_processor_name)]
-DocumentaiClientDep = Annotated["documentai_v1.DocumentProcessorServiceAsyncClient", Depends(get_documentai_client)]
+DocumentaiClientDep = Annotated[
+    "documentai_v1.DocumentProcessorServiceAsyncClient", Depends(get_documentai_client)
+]
 LoggerDep = Annotated[logging.Logger, Depends(get_logger)]
 SessionDep = Annotated[AsyncClient, Depends(get_firestore_db)]
 GenaiClientDep = Annotated["genai.Client", Depends(get_genai_client)]
@@ -97,7 +115,12 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
         cookie_name: str = "access-token",
     ):
         self.cookie_name = cookie_name
-        super().__init__(tokenUrl=tokenUrl, scheme_name=scheme_name, scopes=scopes, auto_error=auto_error)
+        super().__init__(
+            tokenUrl=tokenUrl,
+            scheme_name=scheme_name,
+            scopes=scopes,
+            auto_error=auto_error,
+        )
 
     async def __call__(self, request: Request) -> Optional[str]:
         # Get logger for this method - this is acceptable as it's a framework method
@@ -129,7 +152,9 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
                 if cookie_authorization.startswith('"Bearer '):
                     # Handle the case where the cookie includes quotes and Bearer
                     # This happens when the cookie is set with the literal value "Bearer <token>"
-                    token = cookie_authorization[8:-1]  # Remove '"Bearer ' prefix and '"' suffix
+                    token = cookie_authorization[
+                        8:-1
+                    ]  # Remove '"Bearer ' prefix and '"' suffix
                     # logger.info(f"Found quoted bearer token in cookie: {token[:10]}...")
                     return token
 
@@ -152,7 +177,9 @@ class OAuth2PasswordBearerWithCookieOrHeader(OAuth2PasswordBearer):
         return None
 
 
-oauth2_scheme = OAuth2PasswordBearerWithCookieOrHeader(tokenUrl="token", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearerWithCookieOrHeader(
+    tokenUrl="token", auto_error=False
+)
 TokenDep = Annotated[str, Depends(oauth2_scheme)]
 
 
@@ -161,7 +188,9 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
         raise NotAuthenticatedException
 
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
 
         username: str = payload.get("sub")
         if username is None:
@@ -177,7 +206,12 @@ async def get_current_user(token: TokenDep, db: SessionDep, logger: LoggerDep):
     # username, which the verified token attests to).
     uid = payload.get("uid")
     if uid:
-        return User(user_id=uid, username=username, email=payload.get("email"), full_name=payload.get("name"))
+        return User(
+            user_id=uid,
+            username=username,
+            email=payload.get("email"),
+            full_name=payload.get("name"),
+        )
 
     # Legacy token issued before identity claims were embedded: fall back to a
     # one-time lookup. The user re-acquires a fast-path token on next login.

@@ -1,3 +1,4 @@
+import asyncio
 import io
 import logging
 import uuid
@@ -19,6 +20,7 @@ from app.crud import (
     get_user,
     insert_placeholder_recipe,
     insert_recipe,
+    mark_recipe_failed,
     update_recipe,
 )
 from app.crud import delete_recipe as crud_delete_recipe
@@ -74,10 +76,18 @@ async def add_dish_from_link(
         username=current_user.username,
         link_data_url=link,
     )
-    publish_dish_job(job, pubsub_publisher, logger)
+    await enqueue_dish_job(job, db, pubsub_publisher, logger)
 
     # Return placeholder immediately
     return placeholder.model_dump()
+
+
+async def enqueue_dish_job(job: PubSubMessage, db, publisher, logger):
+    try:
+        await asyncio.to_thread(publish_dish_job, job, publisher, logger)
+    except Exception as exc:
+        await mark_recipe_failed(db, job.username, job.dish_id, "Could not queue recipe processing. Please try again.")
+        raise HTTPException(status_code=503, detail="Could not queue recipe processing. Please try again.") from exc
 
 
 def publish_dish_job(job_data: PubSubMessage, pubsub_publisher: PubSubPublisherDep, logger: logging.Logger):
@@ -86,7 +96,7 @@ def publish_dish_job(job_data: PubSubMessage, pubsub_publisher: PubSubPublisherD
         pubsub_publisher.topic_path(settings.GOOGLE_CLOUD_PROJECT, settings.DISH_JOBS_TOPIC_ID),
         job_data.model_dump_json().encode("utf-8"),
     )
-    message_id = future.result()
+    message_id = future.result(timeout=15)
     logger.info("Published job: %s.", message_id)
 
 
@@ -111,7 +121,7 @@ async def add_dish_from_text(
         username=current_user.username,
         text_data=text,
     )
-    publish_dish_job(job, pubsub_publisher, logger)
+    await enqueue_dish_job(job, db, pubsub_publisher, logger)
 
     # Return placeholder immediately
     return placeholder.model_dump()
@@ -183,7 +193,7 @@ async def add_dish_from_image(
         username=current_user.username,
         image_data_gcs_path=gcs_path,
     )
-    publish_dish_job(job, pubsub_publisher, logger)
+    await enqueue_dish_job(job, db, pubsub_publisher, logger)
 
     # Return placeholder immediately
     return placeholder.model_dump()

@@ -31,7 +31,7 @@ jobs:
           service: dish-server
           source: dish_server/
           region: europe-west1
-          flags: '--min-instances=1 --no-cpu-throttling --allow-unauthenticated --memory=4Gi --cpu=4000m'
+          flags: '--min-instances=0 --no-cpu-throttling --allow-unauthenticated --memory=4Gi --cpu=4000m'
           env_vars: |
             GCLOUD_PROJECT_ID=personal-ai-264306
             IS_PRODUCTION=true

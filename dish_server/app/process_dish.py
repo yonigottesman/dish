@@ -197,7 +197,7 @@ class ProcessDishCallback:
 
         self.logger.info("[LINK] Calling GenAI...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=settings.GENAI_MODEL,
             contents=(
                 "Extract complete recipe from webpage text. Preserve original language. "
                 "Capture ALL details: ingredients with precise measurements/quantities, "
@@ -243,7 +243,7 @@ class ProcessDishCallback:
 
         self.logger.info("[TEXT] Calling GenAI...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=settings.GENAI_MODEL,
             contents=(
                 "Extract complete recipe from text. Preserve original language. "
                 "Capture ALL details: ingredients with precise measurements/quantities, "
@@ -343,7 +343,7 @@ class ProcessDishCallback:
         # Call GenAI with OCR text and image
         self.logger.info("[IMAGE] Calling GenAI with OCR text and image...")
         genai_response = await self.genai_client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model=settings.GENAI_MODEL,
             contents=[
                 (
                     "Extract complete recipe from OCR text and image. Cross-reference both sources for accuracy. "

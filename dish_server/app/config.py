@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     GCS_BUCKET_NAME: str = "dish_storage"
 
+    # Vertex AI model used for recipe extraction
+    GENAI_MODEL: str = "gemini-3.8-flash"
+
     # Environment setting
     IS_PRODUCTION: bool = False
 
